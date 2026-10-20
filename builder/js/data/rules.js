@@ -251,7 +251,7 @@
   // Turn a feat into a choice option, wiring up its sub-choices and effect.
   DND.featOption = function (f, param, source) {
     return {
-      id: f.id, label: f.name, desc: f.desc,
+      id: f.id, label: f.name, desc: f.desc, group: f.compendium ? (f.cat === 'legacy' ? 'Compendium feats (2014)' : 'Compendium feats') : '',
       choices: f.choices ? f.choices(param) : null,
       apply: function (s) {
         if (!f.repeatable && s.feats.some(function (x) { return x.id === f.id; }))
@@ -271,17 +271,17 @@
         return DND.FEATS.filter(function (f) { return cats.indexOf(f.cat) >= 0; }).map(function (f) {
           var o = DND.featOption(f, null, source);
           if (f.cat === 'style' && !s.flags.fightingStyle) o.unavailable = 'Requires the Fighting Style feature';
-          else if (!featMeetsPrereq(f, s, s.level)) o.unavailable = f.minLevel && s.level < f.minLevel ? 'Requires level ' + f.minLevel : 'Requires Str or Dex 13';
+          else if (!featMeetsPrereq(f, s, s.level)) o.unavailable = f.minLevel && s.level < f.minLevel ? 'Requires level ' + f.minLevel : f.prereqText ? 'Requires ' + f.prereqText : 'Requires Str or Dex 13';
           return o;
         });
       }
     };
   };
   DND.generalFeatChoice = function (source) {
-    return DND.featChoice('feat', 'Feat (Ability Score Improvement or another feat)', ['general', 'origin', 'style'], source || 'Class');
+    return DND.featChoice('feat', 'Feat (Ability Score Improvement or another feat)', ['general', 'origin', 'style', 'legacy'], source || 'Class');
   };
   DND.epicFeatChoice = function () {
-    return DND.featChoice('feat', 'Epic Boon (or another feat)', ['epic', 'general', 'origin', 'style'], 'Epic Boon');
+    return DND.featChoice('feat', 'Epic Boon (or another feat)', ['epic', 'general', 'origin', 'style', 'legacy'], 'Epic Boon');
   };
   DND.styleFeatChoice = function (id, label) {
     return DND.featChoice(id || 'style', label || 'Fighting Style feat', ['style'], 'Fighting Style');

@@ -6,21 +6,42 @@ Open `index.html` in a browser. It needs no build step or server, and builds are
 
 ## What it does
 
-- **Build tab**: the origin (class, species, background, ability scores by standard array, point buy or manual) plus a card for each of the 20 levels. Each card lists that level's features and the choices to make there: skills, subclass, feats/ASIs, fighting styles, weapon masteries, expertise, invocations, metamagic, Mystic Arcanum and so on. Open choices are flagged in red, both on the card and on the level rail in the header.
+- **Build tab**: the origin (class, species, background, ability scores by standard array, point buy or manual) plus a card for each of the 20 levels. Each card lists that level's features and the choices to make there: skills, subclass, feats/ASIs, fighting styles, weapon masteries, expertise, invocations, metamagic, maneuvers, Mystic Arcanum and so on. Open choices are flagged in red, both on the card and on the level rail in the header.
 - **Level rail**: click any level (or press ← / →) to view the character at that point. Every choice can be changed at any time, and everything downstream updates.
-- **Sheet tab**: AC, HP, saves, skills, attacks (from your chosen armor and weapons), class resources, proficiencies and the features gained so far, all computed for the viewed level.
-- **Spells tab**: cantrips and prepared spells checked against the viewed level. Spells you can't cast yet stay in your plan and show the level where they unlock. Always-prepared subclass, species and feat spells are listed separately.
+- **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
+- **Gear tab**: armor, shield and weapons (including magic weapons and armor with their bonuses) plus an inventory. Equipped (and attuned) items apply their effects: AC, saving throws, spell attack/DC, speed, initiative, and items that set an ability score. Weight, carrying capacity and the three-item attunement limit are tracked.
+- **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Spells you can't cast yet stay in your plan and show the level where they unlock. Optionally include 2014 spells from an imported compendium.
+- **Companions tab**: familiars, steeds, summons, animated minions, hirelings, sidekicks and Wild Shape forms, each with a full stat block. Suggestions come from the build's spells and features (Find Familiar, Find Steed, Summon spells, Animate Dead, Pact of the Chain, Beast Master, druid Wild Shape by CR).
 - **All 20 levels**: one table with PB, HP, AC, ability scores, features and your choices, the class table columns and spell slots for every level.
+- **Library**: search and filter spells, items, creatures, feats, species, backgrounds and classes, and open any entry in full.
 - Multiple saved builds, Duplicate (to compare variants), and Export/Import as JSON text.
 
 ## Content
 
-Content is limited to the SRD 5.2 (CC-BY-4.0), the openly licensed subset of the 2024 Basic Rules:
+Built in (SRD 5.2, the CC-BY part of the 2024 rules):
 
-- All 12 classes, each with its SRD subclass (Berserker, Lore, Life, Land, Champion, Open Hand, Devotion, Hunter, Thief, Draconic, Fiend, Evoker)
-- 9 species, 4 backgrounds plus a custom background, and the SRD feats and Epic Boons
+- The 12 classes with full mechanics, each with its SRD subclass, plus the SRD species, backgrounds and feats
+- 336 spells, 1,251 items and magic items, and 332 creatures with full text, in `js/data/srd-content.js`
 
-Feature text is paraphrased for quick reference; check the rules for exact wording.
+### Importing more content
+
+Library → **Import compendium files** accepts Fight Club 5 / Game Master 5 compendium XML (or a .zip of XML files). Examples are the collections built by the [FightClub5eXML](https://github.com/vidalvanbergen/FightClub5eXML) project, or the individual files in its `Sources/` folders (select several at once). The project's `Collections/*.xml` files are only indexes; build them with its `build-collections` script first, or import the `Sources/` files directly.
+
+Imported files are parsed in the browser and stored only in that browser (IndexedDB). They are never uploaded or added to this repository. What imports add:
+
+- **2024 (5.5e) subclasses** for the 12 classes (Battle Master, Eldritch Knight, College of Valor, Circle of the Moon and so on) attach to the built-in classes. Their always-prepared spells, spellcasting (Eldritch Knight, Arcane Trickster), resource counters and option lists (maneuvers, invocations, metamagic) are wired up.
+- **Other classes** (2014 classes and their subclasses, Artificer, Blood Hunter, sidekicks, playtest classes) become selectable classes. Hit dice, proficiencies, spell slots, prepared or known spell counts, resources, ASI levels and option groups such as fighting styles all come from the XML.
+- **Species, backgrounds and feats**: 2024 backgrounds give their ability choices and origin feat. 2014 species apply their ability increases, with a warning if combined with a 2024 background. Feats that raise ability scores apply.
+- **Spells, items, magic items and creatures** for the spell lists, Gear, Companions and Library.
+
+Builds that use imported content remember it by ID. On a browser without that compendium, the app shows a notice and a stand-in until it is imported again.
+
+### Regenerating the SRD bundle
+
+```
+git clone https://github.com/vidalvanbergen/FightClub5eXML
+node tools/build-srd.js ./FightClub5eXML
+```
 
 ## Code layout
 
@@ -29,9 +50,19 @@ Feature text is paraphrased for quick reference; check the rules for exact wordi
 | `js/data/rules.js` | Abilities, skills, armor, weapons and masteries, feats, species, backgrounds, spell-slot tables |
 | `js/data/spells.js` | Class spell lists by spell level |
 | `js/data/classes.js` | Class and subclass progressions: features, choices, effects |
+| `js/data/srd-content.js` | Generated SRD 5.2 spells, items and creatures |
 | `js/engine.js` | Replays a build from origin to level 20 and produces a snapshot per level |
+| `js/fc5.js` | Dependency-free reader for Fight Club 5 compendium XML (browser and Node) |
+| `js/content.js` | Merges SRD and imported content into the builder; import and IndexedDB storage |
 | `js/app.js` | UI rendering, events, persistence |
+| `tools/build-srd.js` | Builds `js/data/srd-content.js` |
 
-To add content (a new subclass, feat or species), add an entry to the data files. Each feature can declare `choices` (a select or multi-pick, with options that can carry their own sub-choices) and an `apply(state)` effect. The engine handles the rest.
+To add hand-built content (a new subclass, feat or species), add an entry to the data files. Each feature can declare `choices` (a select or multi-pick, with options that can carry their own sub-choices) and an `apply(state)` effect. The engine handles the rest.
 
-Not yet supported: multiclassing, inventory beyond armor and weapons, and per-level spell swapping.
+Not yet supported: multiclassing and per-level spell swapping.
+
+## Credits and licenses
+
+This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd. The SRD 5.2 is licensed under the Creative Commons Attribution 4.0 International License, available at https://creativecommons.org/licenses/by/4.0/legalcode.
+
+SRD spell, item and creature data was converted from the FightClub5eXML project (MIT License, © Chris Jennewein and contributors).

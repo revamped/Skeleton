@@ -283,3 +283,51 @@ textarea.io { width: 100%; min-height: 220px; font-family: ui-monospace, SFMono-
 @media (prefers-reduced-motion: no-preference) {
   .lvl, .choice { transition: opacity .15s ease, background-color .15s ease; }
 }
+
+/* ---------- Long text, links, toggles ---------- */
+.prose p { margin: 0 0 .5em; }
+.prose p:last-child { margin-bottom: 0; }
+details.more summary { cursor: pointer; list-style: none; }
+details.more summary::-webkit-details-marker { display: none; }
+details.more[open] summary .desc { display: none; }
+.more-link { color: var(--accent); font-size: .88rem; font-weight: 500; white-space: nowrap; }
+.linklike { background: none; border: 0; padding: 0; color: var(--accent); cursor: pointer; font: inherit; text-decoration: underline; text-underline-offset: 2px; text-align: left; }
+.toggle { display: flex; gap: 8px; align-items: center; font-size: .92rem; }
+.notice { border-color: var(--gold); background: var(--gold-soft); }
+.file-btn { cursor: pointer; display: inline-flex; align-items: center; }
+.btn-danger.armed { background: var(--bad); border-color: var(--bad); color: var(--surface); }
+
+/* ---------- Gear ---------- */
+input.qty { width: 4.5em; text-align: center; }
+.add-custom { display: flex; gap: 8px; flex-wrap: wrap; }
+.add-custom input { flex: 1 1 220px; }
+
+/* ---------- Stat blocks ---------- */
+.statblock { display: grid; gap: 6px; font-size: .93rem; border-top: 2px solid var(--gold); padding-top: 8px; min-width: 0; }
+.sb-type { font-style: italic; color: var(--muted); }
+.sb-props { display: grid; gap: 2px; }
+.sb-abilities { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 4px; padding: 6px 0; border-block: 1px solid var(--line); }
+.sb-abilities div { display: grid; justify-items: center; font-variant-numeric: tabular-nums; }
+.sb-abilities .eyebrow { font-size: .72rem; }
+.sb-abilities small { color: var(--muted); }
+.sb-h { font-family: var(--font-display); font-size: 1rem; color: var(--gold); border-bottom: 1px solid var(--line); margin-top: 6px; }
+.sb-entry p { margin: 0 0 .35em; display: inline; }
+.sb-entry { margin-bottom: 4px; }
+.sb-src { font-size: .82rem; }
+
+/* ---------- Library ---------- */
+.lib-cats { flex-wrap: wrap; }
+.lib-list { display: grid; border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.lib-row {
+  display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr); gap: 4px 12px; align-items: baseline;
+  text-align: left; background: var(--surface); border: 0; border-bottom: 1px solid var(--line); padding: 8px 12px; cursor: pointer; font: inherit; color: inherit;
+}
+.lib-row:last-child { border-bottom: 0; }
+.lib-row:hover { background: var(--surface-2); }
+.lib-src { color: var(--muted); font-size: .82rem; text-align: right; }
+@media (max-width: 700px) { .lib-row { grid-template-columns: minmax(0, 1fr); } .lib-src { text-align: left; } }
+.pick-row { width: 100%; background: none; border: 0; text-align: left; font: inherit; color: inherit; grid-template-columns: minmax(0, 1fr); }
+.pick-row .pick-desc { grid-column: 1; }
+.detail-body { padding: 12px 16px; }
+.detail-body h4 { font-family: var(--font-display); margin: 10px 0 4px; }
+.feat-index { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: .92rem; }
