@@ -113,6 +113,25 @@
     Vex: 'On a hit that deals damage, you have Advantage on your next attack roll against that target.'
   };
 
+  // Condition summaries (paraphrased from SRD 5.2).
+  DND.CONDITIONS = [
+    ['Blinded', 'You can\'t see and automatically fail checks that rely on sight. Attack rolls against you have Advantage; your attack rolls have Disadvantage.'],
+    ['Charmed', 'You can\'t attack the charmer or target it with damaging abilities or magic. The charmer has Advantage on ability checks to interact with you socially.'],
+    ['Deafened', 'You can\'t hear and automatically fail checks that rely on hearing.'],
+    ['Exhaustion', 'Cumulative levels 1–6. Each level gives −2 to D20 Tests and −5 ft of Speed. You die at level 6. A Long Rest removes one level.'],
+    ['Frightened', 'Disadvantage on ability checks and attack rolls while the source of fear is in sight, and you can\'t willingly move closer to it.'],
+    ['Grappled', 'Speed 0. Disadvantage on attacks against targets other than the grappler. The grappler can move you, at extra movement cost.'],
+    ['Incapacitated', 'No actions, Bonus Actions or Reactions. Your Concentration breaks, you can\'t speak, and you roll Initiative with Disadvantage.'],
+    ['Invisible', 'Advantage on Initiative. You aren\'t affected by effects that need the caster to see you. Attacks against you have Disadvantage; your attacks have Advantage.'],
+    ['Paralyzed', 'Incapacitated and Speed 0. You fail Strength and Dexterity saves. Attacks against you have Advantage, and hits from within 5 ft are critical hits.'],
+    ['Petrified', 'Turned to stone: Incapacitated, Speed 0, fail Strength and Dexterity saves. Attacks against you have Advantage. Resistance to all damage, immune to Poisoned.'],
+    ['Poisoned', 'Disadvantage on attack rolls and ability checks.'],
+    ['Prone', 'You can only crawl, or spend half your Speed to stand. Disadvantage on attack rolls. Attacks against you have Advantage from within 5 ft, Disadvantage from farther.'],
+    ['Restrained', 'Speed 0. Attacks against you have Advantage; your attacks have Disadvantage. Disadvantage on Dexterity saves.'],
+    ['Stunned', 'Incapacitated. You fail Strength and Dexterity saves, and attacks against you have Advantage.'],
+    ['Unconscious', 'Incapacitated and Prone, and you drop what you hold. Speed 0, you fail Strength and Dexterity saves, attacks against you have Advantage, and hits from within 5 ft are critical hits.']
+  ];
+
   /* ---------- Shared helpers for choices & effects ---------- */
 
   function opt(id, label, desc) { return { id: id, label: label, desc: desc || '' }; }

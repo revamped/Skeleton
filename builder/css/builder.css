@@ -504,3 +504,10 @@ body.printing { overflow: hidden; }
 /* Damage type icons */
 .dmg-type { white-space: nowrap; }
 .dmg-type .ico { width: 1em; height: 1em; margin-right: 3px; vertical-align: -0.15em; color: var(--accent); }
+
+/* Conditions */
+.cond-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 150px), 1fr)); gap: 6px; }
+.cond { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 7px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.cond:hover { border-color: var(--accent); }
+.cond .ico { color: var(--accent); flex: none; }
+.cond .pill { margin-left: auto; font-size: 0.7rem; }

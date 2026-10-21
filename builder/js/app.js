@@ -535,7 +535,41 @@
 
     return '<div class="toolbar"><h2>Character sheet at level ' + b.level + '</h2><button type="button" class="btn btn-primary" data-print="open">Printable sheet</button></div>' +
       '<p class="desc">Change the level in the bar above to see any point of the build.</p>' +
-      warn + '<div class="sheet-grid">' + combat + abilities + skills + resources + profs + traits + '</div>' + features;
+      warn + '<div class="sheet-grid">' + combat + abilities + skills + resources + profs + conditionsCard() + traits + '</div>' + features;
+  }
+
+  // Features, traits and feats (up to the viewed level) that mention each condition.
+  // Each hit: { source, kind: 'immune' | 'advantage' | 'other', text }.
+  function conditionDefenses() {
+    var b = cur(), s = ev.levels[b.level - 1].state, texts = [];
+    ev.levels.slice(0, b.level).forEach(function (l) { l.features.forEach(function (f) { texts.push([f.name, f.desc || '']); }); });
+    ev.species.traits.forEach(function (t) { texts.push([t[0], t[1] || '']); });
+    s.feats.forEach(function (f) { texts.push([f.name, f.desc || '']); });
+    var out = {};
+    D.CONDITIONS.forEach(function (c) {
+      var re = new RegExp('\\b' + c[0] + '\\b', 'i'), hits = [];
+      texts.forEach(function (t) {
+        String(t[1]).split(/(?<=[.;])\s+/).forEach(function (sen) {
+          if (!re.test(sen)) return;
+          var kind = /immun/i.test(sen) ? 'immune' : /advantage/i.test(sen) && /sav|check|end|avoid/i.test(sen) ? 'advantage' : 'other';
+          if (!hits.some(function (h) { return h.source === t[0] && h.text === sen; })) hits.push({ source: t[0], kind: kind, text: sen });
+        });
+      });
+      out[c[0]] = hits;
+    });
+    return out;
+  }
+  function conditionBadge(hits) {
+    if (hits.some(function (h) { return h.kind === 'immune'; })) return '<span class="pill pill-ok">Immune</span>';
+    if (hits.some(function (h) { return h.kind === 'advantage'; })) return '<span class="pill pill-gold">Advantage</span>';
+    return '';
+  }
+  function conditionsCard() {
+    var defs = conditionDefenses();
+    return '<section class="card"><div class="card-head"><h3>Conditions</h3><span class="muted">Select one for its rules</span></div><div class="card-body"><div class="cond-grid">' +
+      D.CONDITIONS.map(function (c) {
+        return '<button type="button" class="cond" data-condinfo="' + esc(c[0]) + '">' + ico(D.conditionIcon(c[0])) + '<span>' + esc(c[0]) + '</span>' + conditionBadge(defs[c[0]]) + '</button>';
+      }).join('') + '</div></div></section>';
   }
 
   function summaryOfChoices(f) {
@@ -1323,6 +1357,14 @@
       var sp = (D.SPELL_DB || []).filter(function (x) { return x.name === parts[0] && (!parts[1] || x.ed === parts[1]); })[0] || D.SPELL_INFO[parts[0]];
       if (!sp) return;
       m.title = sp.name; m.sub = sp.level ? 'Level ' + sp.level + ' spell' : 'Cantrip'; m.html = spellDetailHtml(sp);
+    } else if (kind === 'cond') {
+      var c = D.CONDITIONS.filter(function (x) { return x[0] === id; })[0]; if (!c) return;
+      var hits = conditionDefenses()[id];
+      m.title = c[0]; m.sub = 'Condition';
+      m.html = '<p>' + ico(D.conditionIcon(id), 'ico-title') + esc(c[1]) + '</p>' +
+        (hits.length ? '<h4>Your build at level ' + cur().level + '</h4><div class="rows">' + hits.map(function (h) {
+          return '<div class="row"><span><b>' + esc(h.source) + '</b> <span class="muted">' + esc(h.text) + '</span></span>' + conditionBadge([h]) + '</div>';
+        }).join('') + '</div>' : '<p class="muted">Nothing in this build protects against it at level ' + cur().level + '.</p>');
     } else if (kind === 'item') {
       var it = D.item(id); if (!it) return;
       m.title = it.name; m.sub = it.magic ? 'Magic item' : 'Item'; m.html = itemDetailHtml(it);
@@ -1466,6 +1508,7 @@
     if (t.dataset.listpick) { pickFromList(app.modal.kind, t.dataset.listpick); return; }
     if (t.dataset.iteminfo) { openDetail('item:' + t.dataset.iteminfo); return; }
     if (t.dataset.spellinfo) { openDetail('spell:' + t.dataset.spellinfo); return; }
+    if (t.dataset.condinfo) { openDetail('cond:' + t.dataset.condinfo); return; }
     if (t.dataset.libopen) { openDetail(t.dataset.libopen); return; }
     if (t.dataset.libcat) { app.lib = { cat: t.dataset.libcat, q: app.lib.q, f1: '', f2: '' }; render(); return; }
     if (t.dataset.invrm !== undefined) { b.inventory.splice(+t.dataset.invrm, 1); commit(); return; }
