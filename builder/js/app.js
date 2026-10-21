@@ -243,6 +243,22 @@
     if (!rest) return 'Standard';
     return rest[0] === '(' ? 'Standard ' + rest : rest;
   }
+  // Subclass dropdown under the class picker; it shares the level choice key.
+  function classSubField() {
+    var b = cur(), cls = ev.cls;
+    if (!cls.subclasses || !cls.subclasses.length) return '';
+    var key = cls.id + '.subclass', val = b.choices[key];
+    var groups = [['Built in (2024 SRD)', []], ['From your compendium', []]];
+    cls.subclasses.forEach(function (sc) { groups[sc.compendium ? 1 : 0][1].push(sc); });
+    groups = groups.filter(function (g) { return g[1].length; });
+    var needs = !val;
+    return '<div class="subfield' + (needs ? ' todo' : '') + '"><label for="f-subclass">' + esc(cls.subclassLabel || 'Subclass') + ' · level ' + (cls.subclassLevel || 3) +
+      (needs ? ' <span class="pill pill-todo">choose</span>' : '') + '</label><select id="f-subclass">' + (needs ? '<option value="">— Choose —</option>' : '') +
+      groups.map(function (g) {
+        var inner = g[1].map(function (sc) { return '<option value="' + esc(sc.id) + '"' + (sc.id === val ? ' selected' : '') + '>' + esc(sc.name) + '</option>'; }).join('');
+        return groups.length > 1 ? '<optgroup label="' + esc(g[0]) + '">' + inner + '</optgroup>' : inner;
+      }).join('') + '</select><span class="muted sub-count">' + cls.subclasses.length + ' subclass' + (cls.subclasses.length === 1 ? '' : 'es') + ' for ' + esc(cls.name) + '</span></div>';
+  }
   function backgroundSubField() {
     var b = cur(), bg = ev.background;
     var g = speciesGroups('background').map[backgroundBase(bg.name).toLowerCase()];
@@ -349,7 +365,7 @@
       (n.missing ? '<span class="pill pill-todo">' + n.missing + ' to choose</span>' : '<span class="pill pill-ok">complete</span>') +
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
-      pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; }) +
+      pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; }, { after: classSubField() }) +
       pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
         { title: speciesBase(ev.species.name), count: speciesGroups().order.length, after: subspeciesField() }) +
       pickerField('f-bg', 'Background', 'background', D.BACKGROUNDS, b.backgroundId, function (g) {
@@ -1342,6 +1358,7 @@
     }
     if (t.id === 'f-bg') { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'f-subbg' && t.value) { b.backgroundId = t.value; commit(); return; }
+    if (t.id === 'f-subclass') { setChoice(ev.cls.id + '.subclass', t.value); return; }
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
     if (t.id === 'opt-legacy') { b.options.legacySpells = t.checked; commit(); return; }
