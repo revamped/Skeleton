@@ -483,7 +483,7 @@
     var skills = '<section class="card"><div class="card-head"><h3>Skills</h3><span class="muted">● proficient · ◉ expertise</span></div><div class="card-body"><div class="rows">' +
       Object.keys(D.SKILLS).map(function (k) {
         var sk = d.skills[k];
-        return '<div class="row"><span><span class="prof-dot' + (sk.level ? ' p' + sk.level : '') + '"></span>' + D.SKILLS[k].name + ' <span class="muted">' + abbr(D.SKILLS[k].ability) + '</span></span><span class="v">' + sign(sk.total) + '</span></div>';
+        return '<div class="row"><span><span class="prof-dot' + (sk.level ? ' p' + sk.level : '') + '"></span>' + ico(D.skillIcon(k), 'skill-ico') + D.SKILLS[k].name + ' <span class="muted">' + abbr(D.SKILLS[k].ability) + '</span></span><span class="v">' + sign(sk.total) + '</span></div>';
       }).join('') + '</div></div></section>';
 
     var combat = '<section class="card"><div class="card-head"><h3>Combat</h3></div><div class="card-body"><div class="rows">' +

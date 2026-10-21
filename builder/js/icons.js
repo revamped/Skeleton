@@ -131,6 +131,23 @@
     stunned: '<path d="M9.5 3 11 7.5l4.5 1.5-4.5 1.5L9.5 15 8 10.5 3.5 9 8 7.5z"/><path d="m17.5 13 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9zM18 3.5v3M16.5 5h3"/>',
     unconscious: '<path d="M4 5h6l-6 7h6M13 11h4.5l-4.5 5h4.5M19 17h3l-3 3.5h3"/>',
 
+    /* Skills */
+    skAcrobatics: '<circle cx="12" cy="4" r="2"/><path d="m4.5 6.5 7.5 3.5 7.5-3.5M12 10v4.5M12 14.5 7 20.5M12 14.5l5 6"/>',
+    skArcana: '<circle cx="12" cy="12" r="9"/><path d="M12 4.5 16.4 18 4.9 9.6h14.2L7.6 18z"/>',
+    skAthletics: '<path d="M6.5 7v10M17.5 7v10M3.5 9.5v5M20.5 9.5v5M6.5 12h11"/>',
+    skHistory: '<path d="M6 3h12M6 21h12"/><path d="M7.5 3c0 5 4.5 6 4.5 9s-4.5 4-4.5 9M16.5 3c0 5-4.5 6-4.5 9s4.5 4 4.5 9"/><path d="M9.5 18.5h5"/>',
+    skInsight: '<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-3.5 10.9c.6.5 1 1.2 1 2.1h5c0-.9.4-1.6 1-2.1A6 6 0 0 0 12 3z"/>',
+    skIntimidation: '<circle cx="12" cy="12" r="9"/><path d="m7.5 8.5 3 1.5M16.5 8.5l-3 1.5"/><path d="M8.5 17c1-2 6-2 7 0"/>',
+    skInvestigation: '<circle cx="10" cy="10" r="6"/><path d="m14.5 14.5 6 6"/>',
+    skMedicine: '<path d="M9 3h6v6h6v6h-6v6H9v-6H3V9h6z"/>',
+    skNature: '<path d="M5 19c0-8 5-14 15-14 0 10-6 15-14 15"/><path d="M5 19 13 11"/>',
+    skPerception: '<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    skPersuasion: '<path d="M4 5h16v11H10l-5 4v-4H4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+    skReligion: '<path d="M12 11c-3 0-4.5-3-4.5-5S9.5 2.5 12 2.5 16.5 4 16.5 6 15 11 12 11z"/><path d="M12 11v10.5M7 14.5h10"/>',
+    skSleight: '<rect x="3.5" y="6" width="10" height="15" rx="1.5"/><path d="m11 6 .6-1.8a1.5 1.5 0 0 1 1.9-.9l6.6 2.3a1.5 1.5 0 0 1 .9 1.9l-3.8 11"/><path d="M8.5 11.5 7 13.5l1.5 2 1.5-2z"/>',
+    skStealth: '<path d="M5 14.5c-.5-3 .3-6.5 2.3-6.5S10 10.5 9.5 13.5l-.4 2H5.3z"/><path d="M5.5 18a1.8 1.8 0 0 0 3.5 0"/><path d="M19 9.5c.5-3-.3-6.5-2.3-6.5S14 5.5 14.5 8.5l.4 2h3.8z"/><path d="M18.5 13a1.8 1.8 0 0 1-3.5 0"/>',
+    skSurvival: '<path d="M12 3c2 3 4 4.5 4 7.5a4 4 0 0 1-8 0C8 8 10 6 12 3z"/><path d="m4 21 16-4.5M4 16.5 20 21"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',
@@ -236,6 +253,12 @@
     return DAMAGE_TYPES.indexOf(t) >= 0 ? 'dmg' + t.charAt(0).toUpperCase() + t.slice(1) : null;
   };
   DND.DAMAGE_TYPES = DAMAGE_TYPES;
+
+  var SKILL_ICONS = { acrobatics: 'skAcrobatics', animal: 'paw', arcana: 'skArcana', athletics: 'skAthletics', deception: 'mask', history: 'skHistory', insight: 'skInsight',
+    intimidation: 'skIntimidation', investigation: 'skInvestigation', medicine: 'skMedicine', nature: 'skNature', perception: 'skPerception', performance: 'music',
+    persuasion: 'skPersuasion', religion: 'skReligion', sleight: 'skSleight', stealth: 'skStealth', survival: 'skSurvival' };
+  // Icon for a skill key from DND.SKILLS ("stealth", "sleight"), or null.
+  DND.skillIcon = function (key) { return SKILL_ICONS[key] || null; };
 
   // Icon for a condition name ("Prone", "frightened"), or null.
   DND.conditionIcon = function (name) {
