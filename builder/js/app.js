@@ -218,10 +218,14 @@
   /* ---------- Species grouped by base name (Gnome → Forest, Rock, Deep…) ---------- */
 
   function speciesBase(name) { return name.split(/,| \(| of /)[0].trim(); }
-  function speciesGroups() {
+  // Backgrounds: "Acolyte (2014)", "Baldur's Gate Acolyte", "Cultist (UA)" all group under their base.
+  function backgroundBase(name) { return name.replace(/^Baldur's Gate /, '').split(/ \(|, /)[0].trim(); }
+  function baseOf(kind, name) { return kind === 'background' ? backgroundBase(name) : speciesBase(name); }
+  function speciesGroups(kind) {
+    kind = kind || 'species';
     var groups = {}, order = [];
-    D.SPECIES.forEach(function (sp) {
-      var base = speciesBase(sp.name), key = base.toLowerCase();
+    (kind === 'background' ? D.BACKGROUNDS : D.SPECIES).forEach(function (sp) {
+      var base = baseOf(kind, sp.name), key = base.toLowerCase();
       if (!groups[key]) { groups[key] = { key: key, name: base, list: [] }; order.push(key); }
       groups[key].list.push(sp);
     });
@@ -233,10 +237,31 @@
     });
     return { map: groups, order: order };
   }
-  function variantLabel(sp) {
-    var rest = sp.name.slice(speciesBase(sp.name).length).replace(/^,\s*/, '').trim();
+  function variantLabel(sp, kind) {
+    var base = baseOf(kind || 'species', sp.name);
+    var rest = sp.name.indexOf(base) === 0 ? sp.name.slice(base.length).replace(/^,\s*/, '').trim() : sp.name.replace(base, '').trim();
     if (!rest) return 'Standard';
     return rest[0] === '(' ? 'Standard ' + rest : rest;
+  }
+  function backgroundSubField() {
+    var b = cur(), bg = ev.background;
+    var g = speciesGroups('background').map[backgroundBase(bg.name).toLowerCase()];
+    if (!g || g.list.length < 2) return '';
+    var groups = [];
+    g.list.forEach(function (x) {
+      var gl = !x.compendium ? '2024 rules (built in)' : x.ed === '2024' ? 'Compendium · 2024' : 'Compendium · 2014 and other';
+      var last = groups[groups.length - 1];
+      if (!last || last.label !== gl) groups.push(last = { label: gl, opts: [] });
+      var vl = variantLabel(x, 'background');
+      if (!x.compendium) vl = '2024 rules (SRD)';
+      else if (vl === 'Standard') vl = x.ed === '2024' ? '2024' : 'Standard';
+      else vl = vl.replace(/^Standard \((2014|2024)\)$/, '$1');
+      last.opts.push([x.id, vl + (x.compendium && x.src ? ' — ' + x.src : '')]);
+    });
+    return '<div class="subfield"><label for="f-subbg">Version · ' + esc(g.name) + '</label><select id="f-subbg">' + groups.map(function (gr) {
+      var inner = gr.opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === b.backgroundId ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('');
+      return groups.length > 1 ? '<optgroup label="' + esc(gr.label) + '">' + inner + '</optgroup>' : inner;
+    }).join('') + '</select><span class="muted sub-count">' + g.list.length + ' versions of ' + esc(g.name) + '</span></div>';
   }
   // A built-in species' lineage-style choice (Elf lineage, Gnome lineage, Tiefling legacy, ancestries).
   function lineageSpec(sp) {
@@ -331,7 +356,7 @@
         if (g.custom) return 'Any three abilities, Origin feat, two skills';
         if (g.legacy) return '2014 background: skills ' + (g.skills.map(function (k) { return D.SKILLS[k].name; }).join(', ') || '—');
         return 'Abilities: ' + g.abilities.map(abbr).join(', ') + ' · Feat: ' + g.featName;
-      }) +
+      }, { title: backgroundBase(ev.background.name), count: speciesGroups('background').order.length, after: backgroundSubField() }) +
       '</div>' +
       '<div class="field"><div class="toolbar"><span class="label">Ability scores (before background bonuses)</span>' +
       '<div class="seg" role="group" aria-label="Ability score method">' +
@@ -934,6 +959,25 @@
         { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
         sourceFilter(opts)] };
     }
+    if (kind === 'background') {
+      var bgG = speciesGroups('background');
+      opts = bgG.order.map(function (k) {
+        var g = bgG.map[k], srcs = [], rules = [];
+        g.list.forEach(function (x) {
+          var sr = x.src || 'SRD 5.2'; if (srcs.indexOf(sr) < 0) srcs.push(sr);
+          var r = rulesGroup(x); if (rules.indexOf(r) < 0) rules.push(r);
+        });
+        var first = g.list[0];
+        var variants = g.list.map(function (x) { return variantLabel(x, 'background'); }).filter(function (v) { return v !== 'Standard'; });
+        var about = first.custom ? 'any abilities' : first.legacy ? '2014 background' : 'Feat: ' + (first.featName || '');
+        return { id: 'base:' + k, label: g.name, group: !first.compendium ? '2024 rules (built in)' : 'More backgrounds', order: !first.compendium ? 0 : 1,
+          meta: (g.list.length > 1 ? g.list.length + ' versions' + (variants.length ? ': ' + variants.slice(0, 3).join(', ') + (variants.length > 3 ? '…' : '') : '') + ' · ' : '') + about,
+          search: (g.name + ' ' + g.list.map(function (x) { return x.name + ' ' + (x.src || ''); }).join(' ')).toLowerCase(),
+          facets: { rules: rules, src: srcs } };
+      }).sort(function (a, c) { return a.order - c.order || (a.order ? a.label.localeCompare(c.label) : 0); });
+      return { title: 'Choose a background', current: 'base:' + backgroundBase(ev.background.name).toLowerCase(), options: opts,
+        filters: [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, sourceFilter(opts)] };
+    }
     if (kind === 'species') {
       var sg = speciesGroups();
       opts = sg.order.map(function (k) {
@@ -988,7 +1032,10 @@
       var g = speciesGroups().map[id.replace(/^base:/, '')];
       if (g && !g.list.some(function (x) { return x.id === b.speciesId; })) b.speciesId = g.list[0].id;
     }
-    if (kind === 'background') b.backgroundId = id;
+    if (kind === 'background') {
+      var bgGroup = speciesGroups('background').map[id.replace(/^base:/, '')];
+      if (bgGroup && !bgGroup.list.some(function (x) { return x.id === b.backgroundId; })) b.backgroundId = bgGroup.list[0].id;
+    }
     if (kind === 'item') {
       b.inventory = b.inventory || [];
       var same = b.inventory.filter(function (e) { return e.id === id; })[0];
@@ -1294,6 +1341,7 @@
       commit(); return;
     }
     if (t.id === 'f-bg') { b.backgroundId = t.value; commit(); return; }
+    if (t.id === 'f-subbg' && t.value) { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
     if (t.id === 'opt-legacy') { b.options.legacySpells = t.checked; commit(); return; }
