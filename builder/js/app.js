@@ -220,11 +220,12 @@
   function speciesBase(name) { return name.split(/,| \(| of /)[0].trim(); }
   // Backgrounds: "Acolyte (2014)", "Baldur's Gate Acolyte", "Cultist (UA)" all group under their base.
   function backgroundBase(name) { return name.replace(/^Baldur's Gate /, '').split(/ \(|, /)[0].trim(); }
-  function baseOf(kind, name) { return kind === 'background' ? backgroundBase(name) : speciesBase(name); }
+  function classBase(name) { return name.split(' (')[0].trim(); }
+  function baseOf(kind, name) { return kind === 'background' ? backgroundBase(name) : kind === 'class' ? classBase(name) : speciesBase(name); }
   function speciesGroups(kind) {
     kind = kind || 'species';
     var groups = {}, order = [];
-    (kind === 'background' ? D.BACKGROUNDS : D.SPECIES).forEach(function (sp) {
+    (kind === 'background' ? D.BACKGROUNDS : kind === 'class' ? D.CLASSES : D.SPECIES).forEach(function (sp) {
       var base = baseOf(kind, sp.name), key = base.toLowerCase();
       if (!groups[key]) { groups[key] = { key: key, name: base, list: [] }; order.push(key); }
       groups[key].list.push(sp);
@@ -259,23 +260,24 @@
         return groups.length > 1 ? '<optgroup label="' + esc(g[0]) + '">' + inner + '</optgroup>' : inner;
       }).join('') + '</select><span class="muted sub-count">' + cls.subclasses.length + ' subclass' + (cls.subclasses.length === 1 ? '' : 'es') + ' for ' + esc(cls.name) + '</span></div>';
   }
-  function backgroundSubField() {
-    var b = cur(), bg = ev.background;
-    var g = speciesGroups('background').map[backgroundBase(bg.name).toLowerCase()];
+  function backgroundSubField() { return versionField('background', ev.background, cur().backgroundId, 'f-subbg'); }
+  function classVersionField() { return versionField('class', ev.cls, cur().classId, 'f-classver'); }
+  function versionField(kind, item, curId, fieldId) {
+    var g = speciesGroups(kind).map[baseOf(kind, item.name).toLowerCase()];
     if (!g || g.list.length < 2) return '';
     var groups = [];
     g.list.forEach(function (x) {
       var gl = !x.compendium ? '2024 rules (built in)' : x.ed === '2024' ? 'Compendium · 2024' : 'Compendium · 2014 and other';
       var last = groups[groups.length - 1];
       if (!last || last.label !== gl) groups.push(last = { label: gl, opts: [] });
-      var vl = variantLabel(x, 'background');
+      var vl = variantLabel(x, kind);
       if (!x.compendium) vl = '2024 rules (SRD)';
       else if (vl === 'Standard') vl = x.ed === '2024' ? '2024' : 'Standard';
-      else vl = vl.replace(/^Standard \((2014|2024)\)$/, '$1');
+      else vl = vl.replace(/^Standard \((.*)\)$/, '$1');
       last.opts.push([x.id, vl + (x.compendium && x.src ? ' — ' + x.src : '')]);
     });
-    return '<div class="subfield"><label for="f-subbg">Version · ' + esc(g.name) + '</label><select id="f-subbg">' + groups.map(function (gr) {
-      var inner = gr.opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === b.backgroundId ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('');
+    return '<div class="subfield"><label for="' + fieldId + '">Version · ' + esc(g.name) + '</label><select id="' + fieldId + '">' + groups.map(function (gr) {
+      var inner = gr.opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === curId ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('');
       return groups.length > 1 ? '<optgroup label="' + esc(gr.label) + '">' + inner + '</optgroup>' : inner;
     }).join('') + '</select><span class="muted sub-count">' + g.list.length + ' versions of ' + esc(g.name) + '</span></div>';
   }
@@ -365,7 +367,8 @@
       (n.missing ? '<span class="pill pill-todo">' + n.missing + ' to choose</span>' : '<span class="pill pill-ok">complete</span>') +
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
-      pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; }, { after: classSubField() }) +
+      pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; },
+        { title: classBase(ev.cls.name), count: speciesGroups('class').order.length, after: classVersionField() + classSubField() }) +
       pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
         { title: speciesBase(ev.species.name), count: speciesGroups().order.length, after: subspeciesField() }) +
       pickerField('f-bg', 'Background', 'background', D.BACKGROUNDS, b.backgroundId, function (g) {
@@ -975,6 +978,25 @@
         { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
         sourceFilter(opts)] };
     }
+    if (kind === 'class') {
+      var cg = speciesGroups('class');
+      opts = cg.order.map(function (k) {
+        var g = cg.map[k], srcs = [], rules = [], subs = 0;
+        g.list.forEach(function (x) {
+          var sr = x.src || 'SRD 5.2'; if (srcs.indexOf(sr) < 0) srcs.push(sr);
+          var r = rulesGroup(x); if (rules.indexOf(r) < 0) rules.push(r);
+          subs += x.subclasses.length;
+        });
+        var first = g.list[0];
+        var variants = g.list.map(function (x) { return x.compendium ? variantLabel(x, 'class').replace(/^Standard \((.*)\)$/, '$1') : '2024'; });
+        return { id: 'base:' + k, label: g.name, group: !first.compendium ? '2024 rules (built in)' : 'More classes', order: !first.compendium ? 0 : 1,
+          meta: 'd' + first.hd + (first.caster ? ' · spellcaster' : '') + ' · ' + subs + ' subclasses' + (g.list.length > 1 ? ' · versions: ' + variants.join(', ') : ''),
+          search: (g.name + ' ' + g.list.map(function (x) { return x.name + ' ' + (x.src || ''); }).join(' ')).toLowerCase(),
+          facets: { rules: rules, src: srcs } };
+      }).sort(function (a, c) { return a.order - c.order || (a.order ? a.label.localeCompare(c.label) : 0); });
+      return { title: 'Choose a class', current: 'base:' + classBase(ev.cls.name).toLowerCase(), options: opts,
+        filters: [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, sourceFilter(opts)] };
+    }
     if (kind === 'background') {
       var bgG = speciesGroups('background');
       opts = bgG.order.map(function (k) {
@@ -1043,7 +1065,10 @@
     if (kind === 'weapon') { b.gear.weapons = (b.gear.weapons || []).concat(id); }
     if (kind === 'armor') b.gear.armor = id;
     if (kind === 'shield') b.gear.shield = id === 'none' ? false : id;
-    if (kind === 'class') setClass(id);
+    if (kind === 'class') {
+      var clsG = speciesGroups('class').map[id.replace(/^base:/, '')];
+      if (clsG && !clsG.list.some(function (x) { return x.id === b.classId; })) setClass(clsG.list[0].id);
+    }
     if (kind === 'species') {
       var g = speciesGroups().map[id.replace(/^base:/, '')];
       if (g && !g.list.some(function (x) { return x.id === b.speciesId; })) b.speciesId = g.list[0].id;
@@ -1358,6 +1383,7 @@
     }
     if (t.id === 'f-bg') { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'f-subbg' && t.value) { b.backgroundId = t.value; commit(); return; }
+    if (t.id === 'f-classver' && t.value) { setClass(t.value); commit(); return; }
     if (t.id === 'f-subclass') { setChoice(ev.cls.id + '.subclass', t.value); return; }
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
