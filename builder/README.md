@@ -18,6 +18,13 @@ Open `index.html` in a browser. It needs no build step or server, and builds are
   - Extra Attack and Unarmored Defense don't stack
   - imported classes read their requirements and proficiencies from the compendium's multiclass text
 - **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
+- **Printable sheet** (Sheet tab → Printable sheet): a two-page, letter-size character sheet for the viewed level:
+  - abilities and saves, skills, combat stats, HP/death-save boxes, attacks, class resources and proficiencies
+  - features and traits, with an option for full text
+  - spellcasting per class with slot bubbles, plus equipment with coin boxes, companions and note lines
+  - **Print / Save as PDF** uses the browser's print dialog
+  - **Copy as text** gives a compact plain-text version for notes or VTTs
+  - the Claude artifact viewer blocks printing; open `index.html` from this folder to print
 - **Gear tab**: armor, shield and weapons (including magic weapons and armor with their bonuses) plus an inventory. Equipped (and attuned) items apply their effects: AC, saving throws, spell attack/DC, speed, initiative, and items that set an ability score. Weight, carrying capacity and the three-item attunement limit are tracked.
 - **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Optionally include 2014 spells from an imported compendium.
   - **Per-level learning and swapping:** edits apply at the class level you're viewing and carry forward until a later level changes them.
@@ -67,6 +74,7 @@ node tools/build-srd.js ./FightClub5eXML
 | `js/engine.js` | Replays a build from origin to level 20 and produces a snapshot per level |
 | `js/fc5.js` | Dependency-free reader for Fight Club 5 compendium XML (browser and Node) |
 | `js/content.js` | Merges SRD and imported content into the builder; import and IndexedDB storage |
+| `js/print.js` | Printable character sheet and plain-text export |
 | `js/app.js` | UI rendering, events, persistence |
 | `tools/build-srd.js` | Builds `js/data/srd-content.js` |
 

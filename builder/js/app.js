@@ -530,7 +530,8 @@
     var warn = s.warnings.length ? '<section class="card"><div class="card-head"><h3>Check these</h3></div><div class="card-body"><ul class="warn-list">' +
       s.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div></section>' : '';
 
-    return '<div class="toolbar"><h2>Character sheet at level ' + b.level + '</h2><span class="muted">Change the level in the bar above to see any point of the build.</span></div>' +
+    return '<div class="toolbar"><h2>Character sheet at level ' + b.level + '</h2><button type="button" class="btn btn-primary" data-print="open">Printable sheet</button></div>' +
+      '<p class="desc">Change the level in the bar above to see any point of the build.</p>' +
       warn + '<div class="sheet-grid">' + combat + abilities + skills + resources + profs + traits + '</div>' + features;
   }
 
@@ -1313,6 +1314,25 @@
     app.modal = m; renderModal();
   }
 
+  /* ---------- Printable sheet ---------- */
+
+  var inFrame = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  function renderPrint() {
+    var root = $('#print-root');
+    if (!app.print) { root.hidden = true; root.innerHTML = ''; document.body.classList.remove('printing'); return; }
+    var b = cur();
+    root.innerHTML = '<div class="ps-toolbar"><div class="ps-toolbar-inner"><strong>Printable sheet · level ' + b.level + '</strong>' +
+      '<label class="toggle"><input type="checkbox" id="ps-full"' + (app.print.full ? ' checked' : '') + '> Full feature text</label>' +
+      '<button type="button" class="btn btn-primary" data-print="go">Print / Save as PDF</button>' +
+      '<button type="button" class="btn" data-print="copy">Copy as text</button>' +
+      '<button type="button" class="btn" data-print="close">Close</button></div>' +
+      (app.print.msg ? '<p class="ps-msg" aria-live="polite">' + esc(app.print.msg) + '</p>' : '') +
+      (inFrame ? '<p class="ps-msg">Printing is blocked inside the Claude viewer. To print or save a PDF, open Levelwright from the repository (builder/index.html) in your browser. Copy as text works here.</p>' : '') +
+      '</div><div class="ps-paper">' + D.printSheet.html(b, ev, { full: app.print.full }) + '</div>';
+    root.hidden = false;
+    document.body.classList.add('printing');
+  }
+
   /* ---------- Main render ---------- */
 
   function render() {
@@ -1338,6 +1358,7 @@
     document.querySelector('.cols').classList.toggle('wide', app.tab === 'progression' || app.tab === 'library');
     window.scrollTo(0, y);
     if (app.modal) renderModal();
+    if (app.print) renderPrint();
   }
 
   /* ---------- Events ---------- */
@@ -1398,6 +1419,16 @@
       commit(); return;
     }
     if (t.dataset.close) { closeModal(); return; }
+    if (t.dataset.print === 'open') { app.print = { full: false }; renderPrint(); window.scrollTo(0, 0); return; }
+    if (t.dataset.print === 'close') { app.print = null; renderPrint(); return; }
+    if (t.dataset.print === 'go') { try { window.print(); } catch (err) { app.print.msg = 'This browser blocked printing.'; renderPrint(); } return; }
+    if (t.dataset.print === 'copy') {
+      var txt = D.printSheet.text(cur(), ev);
+      var ok = function () { app.print.msg = 'Copied the sheet as text.'; renderPrint(); };
+      var fail = function () { app.print.msg = 'Copying was blocked. The text is below; select it and copy.'; renderPrint(); var pre = document.createElement('textarea'); pre.className = 'io'; pre.value = txt; $('.ps-toolbar').appendChild(pre); pre.select(); };
+      try { navigator.clipboard.writeText(txt).then(ok, fail); } catch (err) { fail(); }
+      return;
+    }
     if (t.dataset.openlist) { openModal({ type: 'list', kind: t.dataset.openlist, forLevel: +t.dataset.forlevel || 0 }); return; }
     if (t.dataset.mmore) { app.modal.limit += 150; renderModal(); return; }
     if (t.dataset.mclear) { app.modal.f = {}; app.modal.limit = 150; renderModal(); return; }
@@ -1494,6 +1525,7 @@
     if (t.id === 'f-subclass') { setChoice(ev.cls.id + '.subclass', t.value); return; }
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
+    if (t.id === 'ps-full') { app.print.full = t.checked; renderPrint(); return; }
     if (t.id === 'opt-legacy') { b.options.legacySpells = t.checked; commit(); return; }
     if (t.dataset.invqty !== undefined) { b.inventory[+t.dataset.invqty].qty = Math.max(1, parseInt(t.value, 10) || 1); commit(); return; }
     if (t.dataset.invequip !== undefined) { b.inventory[+t.dataset.invequip].equipped = t.checked; commit(); return; }
@@ -1548,6 +1580,7 @@
 
   function onKey(e) {
     if (e.key === 'Escape' && app.modal) { closeModal(); return; }
+    if (e.key === 'Escape' && app.print) { app.print = null; renderPrint(); return; }
     var tag = (e.target.tagName || '').toLowerCase();
     if (tag === 'input' || tag === 'select' || tag === 'textarea' || app.modal) return;
     if (e.key === 'ArrowLeft' || e.key === '[') setLevel(cur().level - 1);
