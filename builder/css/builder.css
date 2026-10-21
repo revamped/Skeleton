@@ -490,3 +490,6 @@ body.printing { overflow: hidden; }
 .ps-icons { display: flex; gap: 6px; margin-bottom: 2px; }
 .ps-icons .ico { width: 22px; height: 22px; color: var(--paper-ink); }
 .field { align-content: start; }
+.sb-type .ico { color: var(--accent); }
+.companion .card-head { align-items: center; }
+.ps-comp .ico { color: var(--paper-ink); }
