@@ -449,7 +449,7 @@
       '<span class="muted">' + esc(ev.multiclass ? classSplit(lv) : ev.cls.name + (subName(lv) ? ' · ' + subName(lv) : '')) + ' · ' + esc(ev.background.name) + '</span></div>' +
       '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' +
       '<div class="abil-row">' + D.ABILITIES.map(function (a) {
-        return '<div class="abil' + (s.abilities[a] > base.abilities[a] ? ' raised' : '') + '" title="' + D.ABILITY_NAMES[a] + (d.saves[a].prof ? ', proficient save' : '') + '"><span class="eyebrow">' + a + '</span><b>' + s.abilities[a] + '</b><small>' + sign(d.mods[a]) + '</small></div>';
+        return '<div class="abil' + (s.abilities[a] > base.abilities[a] ? ' raised' : '') + '" title="' + D.ABILITY_NAMES[a] + (d.saves[a].prof ? ', proficient save' : '') + '">' + ico(D.abilityIcon(a), 'abil-ico') + '<span class="eyebrow">' + a + '</span><b>' + s.abilities[a] + '</b><small>' + sign(d.mods[a]) + '</small></div>';
       }).join('') + '</div>';
     if (d.spell) {
       html += '<div class="sum-section"><h3>Spellcasting</h3>' + d.spellcasters.map(function (e) {

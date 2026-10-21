@@ -229,6 +229,8 @@ select, input[type="text"], input[type="number"], textarea {
 .abil-row { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px; padding: 12px 16px; }
 .abil { text-align: center; border: 1px solid var(--line); border-radius: 6px; padding: 6px 2px; background: var(--surface-2); display: grid; }
 .abil .eyebrow { font-size: .72rem; }
+.abil .abil-ico { justify-self: center; width: 15px; height: 15px; margin-bottom: 2px; color: var(--accent); }
+.abil.raised .abil-ico { color: var(--gold); }
 .abil b { font-size: 1.25rem; font-variant-numeric: tabular-nums; line-height: 1.1; }
 .abil small { color: var(--muted); font-variant-numeric: tabular-nums; }
 .abil.raised { border-color: var(--gold); }
