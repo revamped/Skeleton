@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Levelwright 2024</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Plan and compare D&amp;D 2024 (5.5e) character builds across all 20 levels.">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Alegreya+SC:wght@500;700&family=Alegreya+Sans:ital,wght@0,400;0,500;0,700;1,400&display=swap">
+<link rel="stylesheet" href="css/builder.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-inner">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"><span>20</span></span><span class="brand-name">Levelwright</span></div>
+    <div class="buildbar">
+      <label class="sr" for="build-select">Saved builds</label>
+      <select id="build-select"></select>
+      <label class="sr" for="build-name">Character name</label>
+      <input id="build-name" type="text" maxlength="60" placeholder="Character name">
+      <div class="actions">
+        <button type="button" class="btn" data-action="new">New</button>
+        <button type="button" class="btn" data-action="copy">Duplicate</button>
+        <button type="button" class="btn" data-action="io">Export / Import</button>
+        <button type="button" class="btn btn-danger" data-action="delete" id="delete-btn">Delete</button>
+      </div>
+    </div>
+  </div>
+  <div class="levelbar">
+    <div class="levelbar-inner">
+      <div class="level-readout">
+        <button type="button" class="step" data-action="level-down" aria-label="Previous level">&minus;</button>
+        <div class="level-now"><span class="eyebrow">Viewing level</span><strong id="level-now">1</strong></div>
+        <button type="button" class="step" data-action="level-up" aria-label="Next level">+</button>
+      </div>
+      <ol class="rail" id="rail" aria-label="Levels 1 to 20"></ol>
+    </div>
+  </div>
+  <nav class="tabs" aria-label="Views">
+    <div class="tabs-inner">
+      <button type="button" class="tab" data-tab="build">Build</button>
+      <button type="button" class="tab" data-tab="sheet">Sheet</button>
+      <button type="button" class="tab" data-tab="gear">Gear</button>
+      <button type="button" class="tab" data-tab="spells">Spells</button>
+      <button type="button" class="tab" data-tab="companions">Companions</button>
+      <button type="button" class="tab" data-tab="progression">All 20 levels</button>
+      <button type="button" class="tab" data-tab="library">Library</button>
+    </div>
+  </nav>
+</header>
+
+<main class="page">
+  <div class="cols">
+    <div id="primary" class="primary"></div>
+    <aside id="summary" class="summary" aria-label="Character at the viewed level"></aside>
+  </div>
+  <footer class="foot">
+    This work includes material from the System Reference Document 5.2 ("SRD 5.2") by Wizards of the Coast LLC, available at https://www.dndbeyond.com/srd, licensed under the Creative Commons Attribution 4.0 International License (https://creativecommons.org/licenses/by/4.0/legalcode).
+    SRD spell, item and creature data converted by the FightClub5eXML project (MIT License). Class feature summaries are paraphrased; check the rules for exact wording.
+    Unofficial fan tool. Builds and imported compendiums are saved in this browser only.
+  </footer>
+</main>
+
+<div id="modal" class="modal" hidden></div>
+<div id="print-root" hidden></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/data/rules.js"></script>
+<script src="js/data/spells.js"></script>
+<script src="js/data/classes.js"></script>
+<script src="js/engine.js"></script>
+<script src="js/fc5.js"></script>
+<script src="js/data/srd-content.js"></script>
+<script src="js/content.js"></script>
+<script src="js/print.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
