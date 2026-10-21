@@ -746,6 +746,8 @@
   DND.CLASSES.forEach(function (c) { c.mc = MULTICLASS[c.id]; });
   // Spell slot contribution for multiclass spellcasters.
   DND.CLASSES.forEach(function (c) { if (c.caster) c.caster.mcKind = c.caster.type === 'pact' ? 'pact' : c.caster.type; });
+  // Spell swapping: 'level' = replace one spell when gaining a level; 'rest' = change the list after a Long Rest.
+  DND.CLASSES.forEach(function (c) { if (c.caster) c.caster.swap = ['bard', 'sorcerer', 'warlock'].indexOf(c.id) >= 0 ? 'level' : 'rest'; });
 
   DND.cls = function (id) {
     for (var i = 0; i < DND.CLASSES.length; i++) if (DND.CLASSES[i].id === id) return DND.CLASSES[i];

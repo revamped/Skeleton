@@ -211,6 +211,47 @@
     build.spellsBy = build.spellsBy || {};
     return build.spellsBy[clsId] = build.spellsBy[clsId] || { cantrips: [], prepared: [] };
   };
+  /* ---------- Spell picks by class level (learning and swapping) ---------- */
+  // build.spellPlan[clsId][classLevel] = { cantrips, prepared } — the full list from that class level on.
+  // Levels without an entry inherit the nearest earlier one; build.spells(By) is the starting list.
+  DND.spellsAt = function (build, clsId, CL) {
+    var plan = build.spellPlan && build.spellPlan[clsId], best = -1;
+    if (plan) Object.keys(plan).forEach(function (k) { k = +k; if (k <= CL && k > best) best = k; });
+    return best >= 0 ? plan[best] : DND.spellsFor(build, clsId);
+  };
+  DND.spellsEdit = function (build, clsId, CL) {
+    build.spellPlan = build.spellPlan || {};
+    var plan = build.spellPlan[clsId] = build.spellPlan[clsId] || {};
+    if (!plan[CL]) {
+      var cur = DND.spellsAt(build, clsId, CL);
+      plan[CL] = { cantrips: (cur.cantrips || []).slice(), prepared: (cur.prepared || []).slice() };
+    }
+    return plan[CL];
+  };
+  function sameList(a, b) { return a.length === b.length && a.every(function (x) { return b.indexOf(x) >= 0; }); }
+  // Drop entries that change nothing compared with the level before.
+  DND.spellsTidy = function (build, clsId) {
+    var plan = build.spellPlan && build.spellPlan[clsId];
+    if (!plan) return;
+    Object.keys(plan).map(Number).sort(function (a, b) { return a - b; }).forEach(function (k) {
+      var prev = k > 1 ? DND.spellsAt(build, clsId, k - 1) : DND.spellsFor(build, clsId);
+      if (prev !== plan[k] && sameList(plan[k].cantrips, prev.cantrips || []) && sameList(plan[k].prepared, prev.prepared || [])) delete plan[k];
+    });
+  };
+  // What changed at a class level: spells added and removed versus the level before.
+  DND.spellChanges = function (build, clsId, CL) {
+    var plan = build.spellPlan && build.spellPlan[clsId];
+    if (!plan || !plan[CL]) return null;
+    var now = plan[CL], prev = CL > 1 ? DND.spellsAt(build, clsId, CL - 1) : { cantrips: [], prepared: [] };
+    function diff(a, b) { return a.filter(function (x) { return b.indexOf(x) < 0; }); }
+    var out = {
+      cantripsAdded: diff(now.cantrips, prev.cantrips || []), cantripsRemoved: diff(prev.cantrips || [], now.cantrips),
+      preparedAdded: diff(now.prepared, prev.prepared || []), preparedRemoved: diff(prev.prepared || [], now.prepared)
+    };
+    out.any = out.cantripsAdded.length + out.cantripsRemoved.length + out.preparedAdded.length + out.preparedRemoved.length > 0;
+    return out;
+  };
+
   function meetsReq(s, req) {
     if (!req) return true;
     if (req.any) return req.any.some(function (a) { return s.abilities[a] >= 13; });
@@ -539,9 +580,21 @@
       var takenNow = order.map(function (t) { return { cls: t.cls, level: t.level, sub: t.sub }; });
       var derived = compute(snap, build, cls, takenNow);
 
+      var spellChanges = null;
+      var lvCaster = derived.spellcasters.filter(function (e) { return e.clsId === c.id; })[0];
+      if (lvCaster) {
+        var ch = DND.spellChanges(build, c.id, CL);
+        if (ch && ch.any) {
+          var rule = lvCaster.caster.swap || 'rest', limits = [];
+          if (CL > 1 && ch.cantripsRemoved.length > 1) limits.push(c.name + ' can replace 1 cantrip per level; level ' + CL + ' replaces ' + ch.cantripsRemoved.length + '.');
+          if (CL > 1 && rule === 'level' && ch.preparedRemoved.length > 1) limits.push(c.name + ' can replace 1 spell when it gains a level; level ' + CL + ' replaces ' + ch.preparedRemoved.length + '.');
+          spellChanges = Object.assign({ clsId: c.id, className: c.name, classLevel: CL, rule: rule, problems: limits }, ch);
+          mcIssues = mcIssues.concat(limits);
+        }
+      }
       var issues = { missing: 0, problems: mcIssues.length };
       entries.forEach(function (e) { var n = countIssues(e.choices); issues.missing += n.missing; issues.problems += n.problems; });
-      result.levels.push({ level: L, cls: c, classLevel: CL, newClass: first && L > 1, mcIssues: mcIssues, features: entries, state: snap, d: derived, issues: issues,
+      result.levels.push({ level: L, cls: c, classLevel: CL, newClass: first && L > 1, mcIssues: mcIssues, spellChanges: spellChanges, features: entries, state: snap, d: derived, issues: issues,
         subclass: tk.sub, caster: (tk.sub && tk.sub.caster) || c.caster || null, taken: takenNow });
     }
     result.multiclass = order.length > 1;
@@ -559,7 +612,7 @@
     var lv = ev.levels[level - 1];
     var d = clsId ? lv.d.spellcasters.filter(function (e) { return e.clsId === clsId; })[0] : lv.d.spell;
     if (!d) return null;
-    var c = d.caster, picks = DND.spellsFor(build, d.clsId);
+    var c = d.caster, picks = DND.spellsAt(build, d.clsId, d.classLevel);
     var lists = d.lists;
     function onList(n, lvl) { return lists.some(function (l) { return ((DND.SPELL_LISTS[l] || [])[lvl] || []).indexOf(n) >= 0; }); }
     var cantrips = (picks.cantrips || []).map(function (n, i) {

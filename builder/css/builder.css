@@ -362,3 +362,17 @@ input.qty { width: 4.5em; text-align: center; }
 .lvl-char { font-family: var(--font-body); font-weight: 400; font-size: .85rem; }
 .mc-warn { padding: 8px 16px 0 34px; }
 .mc-hint { margin-top: -6px; }
+
+/* ---------- Spell history and swaps ---------- */
+.spell-changes { border-top: 1px solid var(--line); padding-top: 10px; display: grid; gap: 6px; }
+.changes { font-size: .92rem; }
+.changes .add, .hist .add { color: var(--accent); font-weight: 500; }
+.changes .rem, .hist .rem { color: var(--bad); text-decoration: line-through; text-decoration-thickness: 1px; }
+.spell-history summary { cursor: pointer; font-weight: 700; font-size: .9rem; }
+.spell-history .rows { margin-top: 6px; }
+.spell-history .row { justify-content: flex-start; gap: 12px; align-items: baseline; }
+.spell-history .row.here { background: var(--gold-soft); }
+.spell-history .row .linklike { white-space: nowrap; font-weight: 700; }
+.hist { font-size: .9rem; }
+.chip.new { border-color: var(--accent); }
+.chip-new { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: var(--accent); font-weight: 700; }

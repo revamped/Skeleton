@@ -571,7 +571,7 @@
       // Pact-style tables have a single slot level per row (e.g. the 2014 warlock).
       var pactLike = slotRows.every(function (r) { return r.filter(function (x) { return x; }).length <= 1; }) && maxAt20 >= 5;
       return { type: 'table', ability: ABIL_BY_NAME[lc(ability)] || 'int', list: list, cantrips: cantrips, slots: slotRows,
-        prepared: hasKnown ? fill20(known, 0) : null, preparedFormula: maxAt20 <= 5 ? 'half' : 'full',
+        prepared: hasKnown ? fill20(known, 0) : null, preparedFormula: maxAt20 <= 5 ? 'half' : 'full', swap: hasKnown ? 'level' : 'rest',
         mcKind: pactLike ? 'pact' : maxAt20 >= 9 ? 'full' : maxAt20 >= 5 ? 'half' : 'third' };
     }
     var listKey = 'cs-' + ed + '-' + slug(c.name);

@@ -19,7 +19,11 @@ Open `index.html` in a browser. It needs no build step or server, and builds are
   - imported classes read their requirements and proficiencies from the compendium's multiclass text
 - **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
 - **Gear tab**: armor, shield and weapons (including magic weapons and armor with their bonuses) plus an inventory. Equipped (and attuned) items apply their effects: AC, saving throws, spell attack/DC, speed, initiative, and items that set an ability score. Weight, carrying capacity and the three-item attunement limit are tracked.
-- **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Spells you can't cast yet stay in your plan and show the level where they unlock. Optionally include 2014 spells from an imported compendium.
+- **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Optionally include 2014 spells from an imported compendium.
+  - **Per-level learning and swapping:** edits apply at the class level you're viewing and carry forward until a later level changes them.
+  - **Change tracking:** each level shows what was learned (+) and swapped out (−), on the Spells tab, in a per-class spell history and on the level cards.
+  - **Swap rules:** Bard, Sorcerer, Warlock and imported spells-known casters can replace one spell per level. Every caster can replace one cantrip per level. Extra swaps are flagged.
+  - **Planning ahead:** spells you can't cast yet stay in the list and show the level where they unlock.
 - **Companions tab**: familiars, steeds, summons, animated minions, hirelings, sidekicks and Wild Shape forms, each with a full stat block. Suggestions come from the build's spells and features (Find Familiar, Find Steed, Summon spells, Animate Dead, Pact of the Chain, Beast Master, druid Wild Shape by CR).
 - **All 20 levels**: one table with PB, HP, AC, ability scores, features and your choices, the class table columns and spell slots for every level.
 - **Library**: search and filter spells, items, creatures, feats, species, backgrounds and classes, and open any entry in full.
@@ -68,7 +72,6 @@ node tools/build-srd.js ./FightClub5eXML
 
 To add hand-built content (a new subclass, feat or species), add an entry to the data files. Each feature can declare `choices` (a select or multi-pick, with options that can carry their own sub-choices) and an `apply(state)` effect. The engine handles the rest.
 
-Not yet supported: per-level spell swapping.
 
 ## Credits and licenses
 

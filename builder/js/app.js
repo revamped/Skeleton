@@ -398,6 +398,13 @@
         (f.desc ? (f.long ? longText(f.desc) : '<p class="desc">' + esc(f.desc) + '</p>') : '') + f.choices.map(renderChoice).join('') + '</div>';
     }).join('');
     if (!lv.features.length) feats = '<div class="feature"><p class="desc">No new class features. Your Hit Points and proficiency still grow.</p></div>';
+    if (lv.spellChanges) {
+      var sc = lv.spellChanges, sbits = [];
+      if (sc.cantripsAdded.length + sc.preparedAdded.length) sbits.push('<span class="add">+ ' + esc(sc.cantripsAdded.concat(sc.preparedAdded).join(', ')) + '</span>');
+      if (sc.cantripsRemoved.length + sc.preparedRemoved.length) sbits.push('<span class="rem">− ' + esc(sc.cantripsRemoved.concat(sc.preparedRemoved).join(', ')) + '</span>');
+      feats += '<div class="feature"><div class="feature-name">Spells<span class="pill pill-plain">' + (sc.cantripsRemoved.length + sc.preparedRemoved.length ? 'learned &amp; swapped' : 'learned') + '</span></div>' +
+        '<p class="changes">' + sbits.join(' · ') + '</p>' + (sc.problems.length ? '<ul class="problems">' + sc.problems.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
+    }
     var prev = L > 1 ? ev.levels[L - 2].d.hp : 0;
     return '<section class="' + cls + '" id="lvl-' + L + '">' +
       '<div class="lvl-head"><div class="lvl-num">' + L + '</div><div class="lvl-title"><strong>' + esc(lv.cls.name) + ' ' + lv.classLevel +
@@ -552,19 +559,23 @@
     }
     casters.forEach(function (ce) {
       var rep = D.spellReport(b, ev, b.level, ce.clsId);
-      var sp = rep.d, cid = esc(ce.clsId);
+      var sp = rep.d, cid = esc(ce.clsId), CL = ce.classLevel;
+      var ch = D.spellChanges(b, ce.clsId, CL) || {};
+      var cAdd = ch.cantripsAdded || [], pAdd = ch.preparedAdded || [];
       html += '<section class="card"><div class="card-head"><h3>' + esc(ce.className) + (casters.length > 1 ? ' ' + ce.classLevel : '') + ' spellcasting</h3><span class="muted">' + D.ABILITY_NAMES[sp.ability] + ' · Save DC ' + sp.dc + ' · Attack ' + sign(sp.attack) +
         ' · Lists: ' + sp.lists.map(listLabel).join(', ') + '</span></div><div class="card-body">' + slotsHtml(sp) +
         (D.SPELL_LISTS[ce.caster.list + ':legacy'] ? '<label class="toggle"><input type="checkbox" id="opt-legacy"' + (b.options && b.options.legacySpells ? ' checked' : '') + '> Also offer 2014 spells for this class from your compendium</label>' : '');
       if (sp.cantrips) {
         html += '<div class="field"><div class="toolbar"><span class="label">Cantrips</span><span class="pill ' + (countOk(rep.cantrips) < sp.cantrips ? 'pill-todo' : 'pill-ok') + '">' + countOk(rep.cantrips) + ' / ' + sp.cantrips + '</span></div>' +
-          '<div class="chips">' + rep.cantrips.map(spellChip('cantrips', ce.clsId)).join('') + '<button type="button" class="btn btn-small" data-spellpick="cantrips" data-cls="' + cid + '">Choose cantrips</button></div></div>';
+          '<div class="chips">' + rep.cantrips.map(spellChip('cantrips', ce.clsId, CL, cAdd)).join('') + '<button type="button" class="btn btn-small" data-spellpick="cantrips" data-cls="' + cid + '">Choose cantrips</button></div></div>';
       }
-      html += '<div class="field"><div class="toolbar"><span class="label">Prepared spells (up to level ' + sp.maxLevel + ')</span><span class="pill ' + (rep.preparedCount < sp.prepared ? 'pill-todo' : 'pill-ok') + '">' + rep.preparedCount + ' / ' + sp.prepared + '</span></div>' +
-        '<p class="desc">Plan ahead: spells you can\'t prepare yet stay in the list and show the class level where they unlock.</p>' +
+      html += '<div class="field"><div class="toolbar"><span class="label">' + (sp.caster.swap === 'level' ? 'Spells known' : 'Prepared spells') + ' (up to level ' + sp.maxLevel + ')</span><span class="pill ' + (rep.preparedCount < sp.prepared ? 'pill-todo' : 'pill-ok') + '">' + rep.preparedCount + ' / ' + sp.prepared + '</span></div>' +
+        '<p class="desc">You\'re editing the list at ' + esc(ce.className) + ' level ' + CL + '. Changes apply from this level on, until a later level changes them. ' +
+        (sp.caster.swap === 'level' ? 'When you gain a level you can replace one spell and one cantrip.' : 'You can change prepared spells after a Long Rest; one cantrip can be replaced per level.') + '</p>' +
         '<div class="spell-groups">' + groupByLevel(rep.prepared).map(function (g) {
-          return '<div class="spell-group"><h4>Level ' + g.level + '</h4><div class="chips">' + g.items.map(spellChip('prepared', ce.clsId)).join('') + '</div></div>';
-        }).join('') + '</div><div><button type="button" class="btn btn-small btn-primary" data-spellpick="prepared" data-cls="' + cid + '">Choose prepared spells</button></div></div></div></section>';
+          return '<div class="spell-group"><h4>Level ' + g.level + '</h4><div class="chips">' + g.items.map(spellChip('prepared', ce.clsId, CL, pAdd)).join('') + '</div></div>';
+        }).join('') + '</div><div><button type="button" class="btn btn-small btn-primary" data-spellpick="prepared" data-cls="' + cid + '">Choose prepared spells</button></div></div>' +
+        spellChangesBox(ce, ch) + spellHistory(ce) + '</div></section>';
     });
     if (always.length) {
       html += '<section class="card"><div class="card-head"><h3>Always prepared &amp; granted</h3><span class="muted">Don\'t count against your prepared total</span></div><div class="card-body"><div class="rows">' +
@@ -574,6 +585,35 @@
         }).join('') + '</div></div></section>';
     }
     return html;
+  }
+  function spellChangesBox(ce, ch) {
+    var CL = ce.classLevel, b = cur();
+    var parts = [];
+    if (ch.cantripsAdded && ch.cantripsAdded.length) parts.push('<span class="add">+ ' + esc(ch.cantripsAdded.join(', ')) + '</span> <span class="muted">cantrips</span>');
+    if (ch.preparedAdded && ch.preparedAdded.length) parts.push('<span class="add">+ ' + esc(ch.preparedAdded.join(', ')) + '</span>');
+    if (ch.cantripsRemoved && ch.cantripsRemoved.length) parts.push('<span class="rem">− ' + esc(ch.cantripsRemoved.join(', ')) + '</span> <span class="muted">cantrips</span>');
+    if (ch.preparedRemoved && ch.preparedRemoved.length) parts.push('<span class="rem">− ' + esc(ch.preparedRemoved.join(', ')) + '</span>');
+    var lvInfo = ev.levels.filter(function (l) { return l.cls.id === ce.clsId && l.classLevel === CL; })[0];
+    var probs = lvInfo && lvInfo.spellChanges ? lvInfo.spellChanges.problems : [];
+    var later = b.spellPlan && b.spellPlan[ce.clsId] ? Object.keys(b.spellPlan[ce.clsId]).map(Number).filter(function (k) { return k > CL; }) : [];
+    return '<div class="spell-changes"><div class="toolbar"><span class="label">Changes at ' + esc(ce.className) + ' level ' + CL + '</span><div class="chips">' +
+      (parts.length ? '<button type="button" class="btn btn-small" data-spellreset="' + esc(ce.clsId) + '" data-cl="' + CL + '">Undo changes at this level</button>' : '') +
+      (later.length ? '<button type="button" class="btn btn-small" data-spellcarry="' + esc(ce.clsId) + '" data-cl="' + CL + '" title="Remove the changes planned at later levels">Use this list for all later levels</button>' : '') +
+      '</div></div>' + (parts.length ? '<p class="changes">' + parts.join(' · ') + '</p>' : '<p class="desc">No changes at this level; the list carries over from the level before.</p>') +
+      (probs.length ? '<ul class="warn-list">' + probs.map(function (p) { return '<li>' + esc(p) + '</li>'; }).join('') + '</ul>' : '') + '</div>';
+  }
+  function spellHistory(ce) {
+    var b = cur(), rows = [];
+    ev.levels.forEach(function (l) {
+      if (l.cls.id !== ce.clsId || !l.spellChanges) return;
+      var c = l.spellChanges, bits = [];
+      if (c.cantripsAdded.length + c.preparedAdded.length) bits.push('<span class="add">+ ' + esc(c.cantripsAdded.concat(c.preparedAdded).join(', ')) + '</span>');
+      if (c.cantripsRemoved.length + c.preparedRemoved.length) bits.push('<span class="rem">− ' + esc(c.cantripsRemoved.concat(c.preparedRemoved).join(', ')) + '</span>');
+      rows.push('<div class="row' + (l.level === b.level ? ' here' : '') + '"><button type="button" class="linklike" data-level="' + l.level + '">' + esc(classBase(c.className)) + ' ' + c.classLevel + '</button><span class="hist">' + bits.join(' · ') +
+        (c.problems.length ? ' <span class="pill pill-todo">too many swaps</span>' : '') + '</span></div>');
+    });
+    if (!rows.length) return '';
+    return '<details class="spell-history"' + (rows.length <= 6 ? ' open' : '') + '><summary class="label">Spell history (' + rows.length + ' level' + (rows.length === 1 ? '' : 's') + ' with changes)</summary><div class="rows">' + rows.join('') + '</div></details>';
   }
   function listLabel(key) {
     var legacy = /:legacy$/.test(key);
@@ -589,10 +629,11 @@
     list.forEach(function (x) { var l = x.level || 0; (g[l] = g[l] || []).push(x); });
     return Object.keys(g).sort(function (a, b) { return a - b; }).map(function (l) { return { level: l, items: g[l] }; });
   }
-  function spellChip(kind, clsId) {
+  function spellChip(kind, clsId, cl, added) {
     return function (x) {
-      return '<span class="chip' + (x.ok ? '' : ' bad') + '" title="' + esc(x.note) + '">' + spellLink(x.name) + (x.note ? ' <small>· ' + esc(x.note) + '</small>' : '') +
-        '<button type="button" data-rmspell="' + kind + '" data-cls="' + esc(clsId || '') + '" data-value="' + esc(x.name) + '" aria-label="Remove ' + esc(x.name) + '">×</button></span>';
+      var isNew = added && added.indexOf(x.name) >= 0;
+      return '<span class="chip' + (x.ok ? '' : ' bad') + (isNew ? ' new' : '') + '" title="' + esc(x.note || (isNew ? 'Learned at this level' : '')) + '">' + (isNew ? '<span class="chip-new">new</span> ' : '') + spellLink(x.name) + (x.note ? ' <small>· ' + esc(x.note) + '</small>' : '') +
+        '<button type="button" data-rmspell="' + kind + '" data-cls="' + esc(clsId || '') + '" data-cl="' + (cl || 1) + '" data-value="' + esc(x.name) + '" aria-label="Remove ' + esc(x.name) + '">×</button></span>';
     };
   }
 
@@ -741,7 +782,8 @@
       var sp = forCls(lv) || forCls(ev.levels[19]);
       if (!sp) return closeModal();
       var c = sp.caster;
-      var picked = D.spellsFor(b, sp.clsId)[m.kind] || [];
+      var picked = D.spellsAt(b, sp.clsId, sp.classLevel)[m.kind] || [];
+      m.cls = sp.clsId; m.classLevel = sp.classLevel;
       var lists = (forCls(ev.levels[19]) || sp).lists.slice();
       (lv.state.spells.extraLists || []).forEach(function (l) { if (lists.indexOf(l) < 0) lists.push(l); });
       var opts = m.kind === 'cantrips' ? D.spellOptions(lists, 0, 0) : D.spellOptions(lists, 1, 9);
@@ -769,8 +811,8 @@
           '<span>' + esc(o.label) + (tag ? ' <span class="pill pill-plain">' + esc(tag) + '</span>' : '') + (alw ? ' <span class="pill pill-gold">' + alw + '</span>' : '') + '</span>' +
           (D.SPELL_INFO[o.id] ? '<span class="pick-desc">' + esc(spellMeta(D.SPELL_INFO[o.id])) + ' — ' + esc(snip(D.SPELL_INFO[o.id].text, 180)) + '</span>' : '') + '</label>';
       }).join('') || '<p class="muted" style="padding:12px">No matches.</p>';
-      html = modalShell(m.kind === 'cantrips' ? 'Choose cantrips' : 'Choose prepared spells',
-        picked.length + ' picked · ' + limit + ' allowed at level ' + b.level, list2, '', sFilters);
+      html = modalShell((m.kind === 'cantrips' ? 'Cantrips' : 'Prepared spells') + ' at ' + sp.className + ' level ' + sp.classLevel,
+        picked.length + ' picked · ' + limit + ' allowed · changes apply from this level on', list2, '', sFilters);
     }
     el.innerHTML = html;
     el.hidden = false;
@@ -1334,10 +1376,21 @@
       var vals = (b.choices[t.dataset.remove] || []).filter(function (v) { return v !== t.dataset.value; });
       setChoice(t.dataset.remove, vals); return;
     }
+    if (t.dataset.spellreset) {
+      var plR = b.spellPlan && b.spellPlan[t.dataset.spellreset];
+      if (plR) delete plR[+t.dataset.cl];
+      commit(); return;
+    }
+    if (t.dataset.spellcarry) {
+      var plC = b.spellPlan && b.spellPlan[t.dataset.spellcarry];
+      if (plC) Object.keys(plC).forEach(function (k) { if (+k > +t.dataset.cl) delete plC[k]; });
+      commit(); return;
+    }
     if (t.dataset.spellpick) { openModal({ type: 'spells', kind: t.dataset.spellpick, cls: t.dataset.cls || '' }); return; }
     if (t.dataset.rmspell) {
-      var pk = D.spellsFor(b, t.dataset.cls || b.classId);
+      var rc = t.dataset.cls || b.classId, pk = D.spellsEdit(b, rc, +t.dataset.cl || 1);
       pk[t.dataset.rmspell] = (pk[t.dataset.rmspell] || []).filter(function (n) { return n !== t.dataset.value; });
+      D.spellsTidy(b, rc);
       commit(); return;
     }
     if (t.dataset.rmweapon) {
@@ -1460,9 +1513,9 @@
       return;
     }
     if (t.dataset.spelltoggle) {
-      var k = app.modal.kind, picks = D.spellsFor(b, app.modal.cls || b.classId), list = (picks[k] || []).slice(), n = t.dataset.spelltoggle;
+      var k = app.modal.kind, mc = app.modal.cls || b.classId, picks = D.spellsEdit(b, mc, app.modal.classLevel || 1), list = (picks[k] || []).slice(), n = t.dataset.spelltoggle;
       if (t.checked) { if (list.indexOf(n) < 0) list.push(n); } else list = list.filter(function (x) { return x !== n; });
-      picks[k] = list; commit(); return;
+      picks[k] = list; D.spellsTidy(b, mc); commit(); return;
     }
   }
 
