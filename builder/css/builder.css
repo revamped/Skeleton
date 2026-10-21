@@ -472,3 +472,21 @@ body.printing { overflow: hidden; }
 }
 
 .ps-link { color: var(--gold); font-weight: 700; }
+
+/* ---------- Icons ---------- */
+.ico { width: 1.15em; height: 1.15em; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; vertical-align: -0.22em; flex: none; }
+.ico-badge { display: inline-grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: var(--accent-soft); color: var(--accent); flex: none; }
+.ico-badge .ico { width: 21px; height: 21px; vertical-align: 0; }
+.pick-row.has-ico { grid-template-columns: auto minmax(0, 1fr); column-gap: 12px; align-items: center; }
+.pick-row.has-ico .pick-desc { grid-column: 2; }
+.pb-main { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.pb-main > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pb-main .ico { color: var(--accent); width: 1.3em; height: 1.3em; }
+.btn-primary .pb-main .ico { color: inherit; }
+.ico-title { color: var(--accent); margin-right: 6px; width: 1.1em; height: 1.1em; }
+.lvl.current .ico-title { color: var(--gold); }
+.sum-icons { display: flex; gap: 6px; margin-bottom: 6px; }
+.chip .ico, td .ico, .lib-row .ico { color: var(--accent); }
+.ps-icons { display: flex; gap: 6px; margin-bottom: 2px; }
+.ps-icons .ico { width: 22px; height: 22px; color: var(--paper-ink); }
+.field { align-content: start; }

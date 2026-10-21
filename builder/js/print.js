@@ -76,7 +76,7 @@
     }).join('');
 
     var page1 = '<section class="ps-page">' +
-      '<header class="ps-head"><div><h1>' + esc(x.build.name || 'Unnamed') + '</h1><p>' + esc(x.classLine) + '</p></div>' +
+      '<header class="ps-head"><div><div class="ps-icons">' + x.d.classLevels.map(function (c) { return D.icon(D.classIcon(D.cls(c.id) || { name: c.name })); }).join('') + '</div><h1>' + esc(x.build.name || 'Unnamed') + '</h1><p>' + esc(x.classLine) + '</p></div>' +
       '<dl class="ps-id"><div><dt>Level</dt><dd>' + x.L + '</dd></div><div><dt>Species</dt><dd>' + esc(x.ev.species.name) + '</dd></div><div><dt>Background</dt><dd>' + esc(x.ev.background.name) + '</dd></div>' +
       '<div><dt>Size</dt><dd>' + esc(s.size) + '</dd></div><div><dt>Hit Dice</dt><dd>' + esc(d.hitDice) + '</dd></div><div><dt>XP / Notes</dt><dd>&nbsp;</dd></div></dl></header>' +
       '<div class="ps-grid">' +
