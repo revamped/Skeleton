@@ -110,9 +110,13 @@
   function backgroundSpecs(bg) {
     var specs = [];
     if (bg.custom) {
-      specs.push({ id: 'abilities', label: 'Background abilities (pick three)', kind: 'many', count: 3, options: DND.abilityOptions() });
+      // Any abilities: +2/+1 to two of them, or +1 to three.
+      specs.push({ id: 'asi', label: 'Ability score increases', kind: 'one', options: function () { return flexAsiOptions(); } });
+      specs.push(DND.featChoice('feat', 'Origin feat', ['origin'], 'Background'));
+      specs.push(DND.skillChoice('skills', 'Background skills', 2, null, 'Background'));
+      return specs;
     }
-    var pool = function (get) { return bg.custom ? (get('abilities') || []) : bg.abilities; };
+    var pool = function () { return bg.abilities; };
     specs.push({ id: 'asi', label: 'Ability score increases', kind: 'one',
       options: function (s, get) {
         var abs = pool(get);
@@ -128,10 +132,6 @@
             apply: function (st) { abs.forEach(function (a) { DND.inc(st, a, 1, 20); }); } }
         ];
       } });
-    if (bg.custom) {
-      specs.push(DND.featChoice('feat', 'Origin feat', ['origin'], 'Background'));
-      specs.push(DND.skillChoice('skills', 'Background skills', 2, null, 'Background'));
-    }
     return specs;
   }
 

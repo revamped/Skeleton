@@ -198,7 +198,7 @@
     return {
       id: idFor('i-', it), name: edName('item', it), cat: martial ? 'martial' : 'simple', ranged: it.type === 'R',
       dmg: it.dmg1, dmg2: it.dmg2 || '', type: DMG[it.dmgType] || lc(it.dmgType || ''), props: props, mastery: mm ? mm[1] : base ? base.mastery : null,
-      bonusHit: b.hit, bonusDmg: b.dmg, magic: it.magic, compendium: true, itemId: idFor('i-', it), baseId: base ? base.id : null
+      bonusHit: b.hit, bonusDmg: b.dmg, magic: it.magic, compendium: true, itemId: idFor('i-', it), baseId: base ? base.id : null, src: it.src
     };
   }
   function registerItems(lists) {
@@ -219,7 +219,7 @@
         if ((it.type === 'M' || it.type === 'R') && it.dmg1 && !(builtinW && !it.magic)) DND.WEAPONS.push(weaponFromItem(it));
         if (/^(LA|MA|HA)$/.test(it.type) && it.ac && !(builtinA && !it.magic)) {
           DND.ARMOR.push({ id: id, name: edName('item', it), type: { LA: 'light', MA: 'medium', HA: 'heavy' }[it.type], ac: +it.ac,
-            str: +it.strength || 0, stealthDis: it.stealth === '1' || it.stealth === 'YES', bonusAc: bonuses(it).ac, magic: it.magic, compendium: true, itemId: id });
+            str: +it.strength || 0, stealthDis: it.stealth === '1' || it.stealth === 'YES', bonusAc: bonuses(it).ac, magic: it.magic, compendium: true, itemId: id, src: it.src });
         }
         if (it.type === 'S' && it.magic) DND.SHIELDS.push({ id: id, name: it.name, bonus: bonuses(it).ac, itemId: id });
       });

@@ -160,7 +160,12 @@
       rec.optional && !rec.value ? '<span class="pill pill-plain">optional</span>' : '';
     var id = 'c-' + rec.key.replace(/[^a-zA-Z0-9_-]/g, '_');
     var body;
-    if (rec.kind === 'one') {
+    if (rec.kind === 'one' && rec.options.length > 20) {
+      var cur1 = find(rec.options, rec.value);
+      body = '<div class="chips"><button type="button" id="' + id + '" class="btn picker-btn' + (rec.missing ? ' btn-primary' : '') + '" data-pick="' + esc(rec.key) + '">' +
+        (cur1 ? esc(cur1.label) : 'Choose…') + ' <span class="muted">' + rec.options.length + ' options</span></button></div>' +
+        (cur1 && cur1.desc ? (cur1.desc.length > 280 ? longText(cur1.desc) : '<p class="opt-desc">' + esc(cur1.desc) + '</p>') : '');
+    } else if (rec.kind === 'one') {
       var groups = {}, order = [];
       rec.options.forEach(function (o) {
         var g = o.group || '';
@@ -200,6 +205,12 @@
     list.forEach(function (x) { groups[!x.compendium ? 0 : x.ed === '2024' ? 1 : 2][1].push(x); });
     groups.slice(1).forEach(function (g) { g[1].sort(function (a, b) { return a.name.localeCompare(b.name); }); });
     return groups.filter(function (g) { return g[1].length; });
+  }
+  function pickerField(id, label, kind, list, value, descFn) {
+    var curItem = find(list, value);
+    return '<div class="field"><label for="' + id + '">' + label + '</label><button type="button" id="' + id + '" class="btn picker-btn" data-openlist="' + kind + '">' +
+      '<span>' + esc(curItem ? curItem.name : 'Choose…') + '</span><span class="muted">' + list.length + ' ▾</span></button>' +
+      (descFn && curItem ? '<p class="desc">' + esc(descFn(curItem)) + (curItem.src ? ' · ' + esc(curItem.src) : '') + '</p>' : '') + '</div>';
   }
   function selectField(id, label, list, value, descFn) {
     var groups = contentGroups(list);
@@ -254,9 +265,9 @@
       (n.missing ? '<span class="pill pill-todo">' + n.missing + ' to choose</span>' : '<span class="pill pill-ok">complete</span>') +
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
-      selectField('f-class', 'Class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; }) +
-      selectField('f-species', 'Species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); }) +
-      selectField('f-bg', 'Background', D.BACKGROUNDS, b.backgroundId, function (g) {
+      pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; }) +
+      pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); }) +
+      pickerField('f-bg', 'Background', 'background', D.BACKGROUNDS, b.backgroundId, function (g) {
         if (g.custom) return 'Any three abilities, Origin feat, two skills';
         if (g.legacy) return '2014 background: skills ' + (g.skills.map(function (k) { return D.SKILLS[k].name; }).join(', ') || '—');
         return 'Abilities: ' + g.abilities.map(abbr).join(', ') + ' · Feat: ' + g.featName;
@@ -493,14 +504,55 @@
 
   /* ---------- Modal pickers ---------- */
 
-  function openPicker(key) { app.modal = { type: 'choice', key: key, q: '' }; renderModal(); }
-  function openSpellPicker(kind) { app.modal = { type: 'spells', kind: kind, q: '' }; renderModal(); }
+  function openModal(m) { m.q = ''; m.f = {}; m.limit = 150; app.modal = m; renderModal(); }
+  function openPicker(key) { openModal({ type: 'choice', key: key }); }
+  function openSpellPicker(kind) { openModal({ type: 'spells', kind: kind }); }
+  function openList(kind) { openModal({ type: 'list', kind: kind }); }
   function closeModal() { app.modal = null; $('#modal').hidden = true; $('#modal').innerHTML = ''; }
 
-  function modalShell(title, sub, list, foot) {
+  // Filter dropdowns shown under the search box; values live in app.modal.f.
+  function filterBar(filters) {
+    var m = app.modal;
+    if (!filters || !filters.length) return '';
+    var active = filters.filter(function (f) { return m.f[f.id]; }).length;
+    return '<div class="dialog-filters">' + filters.map(function (f) {
+      return '<label class="mini-field"><span>' + esc(f.label) + '</span><select data-mfilter="' + esc(f.id) + '">' +
+        (f.noAny ? '' : '<option value="">Any</option>') + f.values.map(function (v) {
+          return '<option value="' + esc(v[0]) + '"' + (m.f[f.id] === v[0] ? ' selected' : '') + '>' + esc(v[1]) + '</option>';
+        }).join('') + '</select></label>';
+    }).join('') + (active ? '<button type="button" class="btn btn-small" data-mclear="1">Clear filters</button>' : '') + '</div>';
+  }
+  function applyFilters(options, filters) {
+    var m = app.modal;
+    return options.filter(function (o) {
+      return (filters || []).every(function (f) {
+        var v = m.f[f.id];
+        if (!v) return true;
+        if (f.test) return f.test(o, v);
+        var have = o.facets && o.facets[f.id];
+        return Array.isArray(have) ? have.indexOf(v) >= 0 : have === v;
+      });
+    });
+  }
+  // Distinct facet values across options, as [value, label] pairs.
+  function facetValues(options, id, sorter) {
+    var seen = {};
+    options.forEach(function (o) {
+      var v = o.facets && o.facets[id];
+      (Array.isArray(v) ? v : [v]).forEach(function (x) { if (x) seen[x] = (seen[x] || 0) + 1; });
+    });
+    var keys = Object.keys(seen);
+    keys.sort(sorter || function (a, b) { return a.localeCompare(b); });
+    return keys.map(function (k) { return [k, k + ' (' + seen[k] + ')']; });
+  }
+  function showMore(total, shown) {
+    return total > shown ? '<div class="more-row"><span class="muted">Showing ' + shown + ' of ' + total.toLocaleString() + '.</span> <button type="button" class="btn btn-small" data-mmore="1">Show more</button></div>' : '';
+  }
+
+  function modalShell(title, sub, list, foot, filters) {
     var m = app.modal;
     return '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">' + esc(title) + '</h3><span class="muted">' + sub + '</span></div>' +
-      '<div class="dialog-tools"><label class="sr" for="dlg-q">Search</label><input id="dlg-q" type="text" placeholder="Search…" value="' + esc(m.q) + '"></div>' +
+      '<div class="dialog-tools"><label class="sr" for="dlg-q">Search</label><input id="dlg-q" type="text" placeholder="Search…" value="' + esc(m.q) + '"></div>' + filterBar(filters) +
       '<div class="dialog-list" id="dlg-list">' + list + '</div><div class="dialog-foot">' + (foot || '') + '<button type="button" class="btn btn-primary" data-close="1">Done</button></div></div>';
   }
 
@@ -516,31 +568,40 @@
     } else if (m.type === 'choice') {
       var rec = findRec(m.key);
       if (!rec) return closeModal();
-      var vals = Array.isArray(rec.value) ? rec.value : [];
-      var full = vals.length >= rec.count;
+      var vals = rec.kind === 'one' ? (rec.value ? [rec.value] : []) : Array.isArray(rec.value) ? rec.value : [];
+      var full = rec.kind === 'many' && vals.length >= rec.count;
       var q = m.q.toLowerCase(), lastGroup = null;
-      var list = rec.options.filter(function (o) { return !q || (o.label + ' ' + (o.desc || '')).toLowerCase().indexOf(q) >= 0; }).map(function (o) {
+      var groupsSeen = {};
+      rec.options.forEach(function (o) { if (o.group) groupsSeen[o.group] = (groupsSeen[o.group] || 0) + 1; });
+      var cFilters = [{ id: 'avail', label: 'Show', noAny: true, values: [['all', 'All options'], ['avail', 'Available only']], test: function (o, v) { return v !== 'avail' || !o.unavailable || vals.indexOf(o.id) >= 0; } }];
+      if (Object.keys(groupsSeen).length > 1) cFilters.push({ id: 'group', label: 'Group', values: Object.keys(groupsSeen).map(function (g) { return [g, g + ' (' + groupsSeen[g] + ')']; }), test: function (o, v) { return (o.group || '') === v; } });
+      if (!m.f.avail) m.f.avail = 'all';
+      var hitsC = applyFilters(rec.options.filter(function (o) { return !q || (o.label + ' ' + (o.desc || '')).toLowerCase().indexOf(q) >= 0; }), cFilters);
+      var list = hitsC.slice(0, m.limit).map(function (o) {
         var on = vals.indexOf(o.id) >= 0;
         var disabled = !on && (full || !!o.unavailable);
         var g = o.group && o.group !== lastGroup ? '<div class="pick-group">' + esc(o.group) + '</div>' : '';
         lastGroup = o.group;
-        return g + '<label class="pick' + (o.unavailable && !on ? ' unavail' : '') + '"><input type="checkbox" data-toggle="' + esc(o.id) + '"' + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '>' +
-          '<span><b>' + esc(o.label) + '</b>' + (o.unavailable ? ' <span class="pill pill-plain">' + esc(o.unavailable) + '</span>' : '') + '</span>' +
-          (o.desc ? '<span class="pick-desc">' + esc(snip(o.desc, 320)) + '</span>' : '') + '</label>';
+        var label = '<span><b>' + esc(o.label) + '</b>' + (on && rec.kind === 'one' ? ' <span class="pill pill-ok">current</span>' : '') + (o.unavailable ? ' <span class="pill pill-plain">' + esc(o.unavailable) + '</span>' : '') + '</span>' +
+          (o.desc ? '<span class="pick-desc">' + esc(snip(o.desc, 320)) + '</span>' : '');
+        if (rec.kind === 'one') return g + '<button type="button" class="pick pick-row' + (o.unavailable && !on ? ' unavail' : '') + (on ? ' on' : '') + '" data-pickone="' + esc(o.id) + '"' + (disabled ? ' disabled' : '') + '>' + label + '</button>';
+        return g + '<label class="pick' + (o.unavailable && !on ? ' unavail' : '') + '"><input type="checkbox" data-toggle="' + esc(o.id) + '"' + (on ? ' checked' : '') + (disabled ? ' disabled' : '') + '>' + label + '</label>';
       }).join('') || '<p class="muted" style="padding:12px">No matches.</p>';
-      html = modalShell(rec.label, vals.length + ' of ' + rec.count + ' chosen', list);
+      list += showMore(hitsC.length, Math.min(m.limit, hitsC.length));
+      html = modalShell(rec.label, rec.kind === 'one' ? hitsC.length + ' options' : vals.length + ' of ' + rec.count + ' chosen', list, '', cFilters);
     } else if (m.type === 'list') {
       var src = listSource(m.kind), q3 = m.q.toLowerCase(), lg3 = null;
-      var hits = src.options.filter(function (o) { return !q3 || o.search.indexOf(q3) >= 0; });
-      var shown = hits.slice(0, 150);
+      var hits = applyFilters(src.options.filter(function (o) { return !q3 || o.search.indexOf(q3) >= 0; }), src.filters);
+      var shown = hits.slice(0, m.limit);
       var list3 = shown.map(function (o) {
         var g = o.group && o.group !== lg3 ? '<div class="pick-group">' + esc(o.group) + '</div>' : '';
         lg3 = o.group;
-        return g + '<button type="button" class="pick pick-row" data-listpick="' + esc(o.id) + '"><span><b>' + esc(o.label) + '</b>' + (o.meta ? ' <span class="muted">' + esc(o.meta) + '</span>' : '') + '</span>' +
+        var on = src.current && o.id === src.current;
+        return g + '<button type="button" class="pick pick-row' + (on ? ' on' : '') + '" data-listpick="' + esc(o.id) + '"><span><b>' + esc(o.label) + '</b>' + (on ? ' <span class="pill pill-ok">current</span>' : '') + (o.meta ? ' <span class="muted">' + esc(o.meta) + '</span>' : '') + '</span>' +
           (o.desc ? '<span class="pick-desc">' + esc(snip(o.desc, 220)) + '</span>' : '') + '</button>';
-      }).join('') || '<p class="muted" style="padding:12px">No matches.</p>';
-      if (hits.length > shown.length) list3 += '<p class="muted" style="padding:8px 12px">Showing 150 of ' + hits.length + '. Type to narrow the list.</p>';
-      html = modalShell(src.title, hits.length + ' available', list3);
+      }).join('') || '<p class="muted" style="padding:12px">No matches. Try clearing a filter.</p>';
+      list3 += showMore(hits.length, shown.length);
+      html = modalShell(src.title, hits.length.toLocaleString() + ' of ' + src.options.length.toLocaleString(), list3, '', src.filters);
     } else if (m.type === 'detail') {
       html = '<div class="dialog dialog-detail" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">' + esc(m.title) + '</h3><span class="muted">' + esc(m.sub || '') + '</span></div>' +
         '<div class="dialog-tools"></div><div class="dialog-list detail-body" id="dlg-list">' + m.html + '</div><div class="dialog-foot">' + (m.foot || '') + '<button type="button" class="btn btn-primary" data-close="1">Close</button></div></div>';
@@ -553,7 +614,17 @@
       var q2 = m.q.toLowerCase(), lg = null;
       var limit = m.kind === 'cantrips' ? sp.cantrips : sp.prepared;
       var alwaysNames = lv.state.spells.always.map(function (a) { return a.name; });
-      var list2 = opts.filter(function (o) { return !q2 || o.label.toLowerCase().indexOf(q2) >= 0; }).map(function (o) {
+      var sFilters = [];
+      if (m.kind === 'prepared') {
+        sFilters.push({ id: 'lvl', label: 'Level', values: [1, 2, 3, 4, 5, 6, 7, 8, 9].map(function (l) { return [String(l), 'Level ' + l]; }), test: function (o, v) { return String(D.SPELL_LEVEL[o.id]) === v; } });
+        sFilters.push({ id: 'now', label: 'Show', values: [['now', 'Castable at level ' + b.level]], test: function (o) { return D.SPELL_LEVEL[o.id] <= sp.maxLevel; } });
+      }
+      var schools = {};
+      opts.forEach(function (o) { var i = D.SPELL_INFO[o.id]; if (i && D.SCHOOL[i.school]) schools[i.school] = 1; });
+      if (Object.keys(schools).length) sFilters.push({ id: 'school', label: 'School', values: Object.keys(schools).map(function (k) { return [k, D.SCHOOL[k]]; }).sort(function (a, c) { return a[1].localeCompare(c[1]); }),
+        test: function (o, v) { var i = D.SPELL_INFO[o.id]; return !!i && i.school === v; } });
+      sFilters.push({ id: 'picked', label: 'Picked', values: [['yes', 'Picked only'], ['no', 'Not picked']], test: function (o, v) { return (picked.indexOf(o.id) >= 0) === (v === 'yes'); } });
+      var list2 = applyFilters(opts.filter(function (o) { return !q2 || o.label.toLowerCase().indexOf(q2) >= 0; }), sFilters).map(function (o) {
         var on = picked.indexOf(o.id) >= 0;
         var sl = D.SPELL_LEVEL[o.id], at = D.levelForSpell(c, sl);
         var tag = m.kind === 'prepared' && sl > sp.maxLevel ? (at <= 20 ? 'Unlocks at class level ' + at : 'Beyond your slots') : '';
@@ -565,7 +636,7 @@
           (D.SPELL_INFO[o.id] ? '<span class="pick-desc">' + esc(spellMeta(D.SPELL_INFO[o.id])) + ' — ' + esc(snip(D.SPELL_INFO[o.id].text, 180)) + '</span>' : '') + '</label>';
       }).join('') || '<p class="muted" style="padding:12px">No matches.</p>';
       html = modalShell(m.kind === 'cantrips' ? 'Choose cantrips' : 'Choose prepared spells',
-        picked.length + ' picked · ' + limit + ' allowed at level ' + b.level, list2);
+        picked.length + ' picked · ' + limit + ' allowed at level ' + b.level, list2, '', sFilters);
     }
     el.innerHTML = html;
     el.hidden = false;
@@ -596,21 +667,16 @@
       }).join('') : '<tr><td colspan="4" class="muted">No weapons equipped.</td></tr>') + '</tbody></table></div>';
   }
 
-  function armorSelect(gear) {
-    var groups = [['No armor', []], ['Armor', []], ['Magic armor (compendium)', []]];
-    D.ARMOR.forEach(function (a) { groups[a.type === 'none' ? 0 : a.compendium ? 2 : 1][1].push(a); });
-    groups[2][1].sort(function (a, b) { return a.name.localeCompare(b.name); });
-    return '<select id="g-armor">' + groups.filter(function (g) { return g[1].length; }).map(function (g) {
-      return '<optgroup label="' + esc(g[0]) + '">' + g[1].map(function (a) {
-        return '<option value="' + esc(a.id) + '"' + (a.id === gear.armor ? ' selected' : '') + '>' + esc(a.name) + (a.ac ? ' (' + a.type + ', AC ' + (a.ac + (a.bonusAc || 0)) + ')' : '') + '</option>';
-      }).join('') + '</optgroup>';
-    }).join('') + '</select>';
+  function armorButton(gear) {
+    var a = find(D.ARMOR, gear.armor) || D.ARMOR[0];
+    return '<button type="button" id="g-armor" class="btn picker-btn" data-openlist="armor"><span>' + esc(a.name) + '</span><span class="muted">' +
+      (a.ac ? a.type + ', AC ' + (a.ac + (a.bonusAc || 0)) : '') + ' ▾</span></button>';
   }
-  function shieldSelect(gear) {
+  function shieldButton(gear) {
     var curId = gear.shield === true ? 'shield' : gear.shield || '';
-    return '<select id="g-shield"><option value="">No shield</option>' + (D.SHIELDS || [{ id: 'shield', name: 'Shield', bonus: 0 }]).map(function (sh) {
-      return '<option value="' + esc(sh.id) + '"' + (sh.id === curId ? ' selected' : '') + '>' + esc(sh.name) + ' (+' + (2 + (sh.bonus || 0)) + ' AC)</option>';
-    }).join('') + '</select>';
+    var sh = curId && find(D.SHIELDS || [], curId);
+    return '<button type="button" id="g-shield" class="btn picker-btn" data-openlist="shield"><span>' + esc(sh ? sh.name : curId ? 'Shield' : 'No shield') + '</span><span class="muted">' +
+      (curId ? '+' + (2 + (sh && sh.bonus || 0)) + ' AC ' : '') + '▾</span></button>';
   }
 
   function renderGear() {
@@ -619,8 +685,8 @@
     var inv = b.inventory || [];
     var fx = d.items;
     var equipped = '<section class="card"><div class="card-head"><h3>Equipped</h3><span class="muted">AC ' + d.ac + ' (' + esc(d.acHow) + ')</span></div><div class="card-body">' +
-      '<div class="gear-grid"><div class="field"><label for="g-armor">Armor</label>' + armorSelect(gear) + '</div>' +
-      '<div class="field"><label for="g-shield">Shield</label>' + shieldSelect(gear) + '</div></div>' +
+      '<div class="gear-grid"><div class="field"><label for="g-armor">Armor</label>' + armorButton(gear) + '</div>' +
+      '<div class="field"><label for="g-shield">Shield</label>' + shieldButton(gear) + '</div></div>' +
       '<div class="field"><div class="toolbar"><span class="label">Weapons</span><button type="button" class="btn btn-small btn-primary" data-openlist="weapon">Add weapon</button></div>' +
       '<div class="chips">' + (gear.weapons || []).map(function (id) {
         var w = D.weapon(id);
@@ -730,29 +796,114 @@
 
   /* ---------- List picker sources ---------- */
 
+  function rulesGroup(x) { return !x.compendium ? 'Built in (2024 SRD)' : x.ed === '2024' ? 'Compendium · 2024' : 'Compendium · 2014 and other'; }
+  function sourceFilter(options) { return { id: 'src', label: 'Source', values: facetValues(options, 'src') }; }
+  var PROP_NAMES = { F: 'Finesse', L: 'Light', H: 'Heavy', T: 'Thrown', '2': 'Two-Handed', V: 'Versatile', R: 'Reach', A: 'Ammunition' };
+  var DIE_ORDER = ['1', '1d4', '1d6', '1d8', '1d10', '1d12', '2d4', '2d6', '2d8', '2d10', '2d12'];
+  var GROUP_ORDER = ['Simple melee', 'Simple ranged', 'Martial melee', 'Martial ranged'];
+
   function listSource(kind) {
+    var b = cur(), gear = b.gear || {}, opts, filters;
     if (kind === 'weapon') {
-      return { title: 'Add a weapon', options: D.WEAPONS.map(function (w) {
-        return { id: w.id, label: w.name, meta: w.cat + ' · ' + w.dmg + ' ' + w.type + (w.bonusHit ? ' · +' + w.bonusHit : '') + (w.mastery ? ' · ' + w.mastery : ''), group: w.compendium ? 'Compendium & magic weapons' : 'Weapons', desc: '', search: (w.name + ' ' + w.cat + ' ' + (w.mastery || '')).toLowerCase() };
-      }) };
+      opts = D.WEAPONS.map(function (w) {
+        var grp = (w.cat === 'martial' ? 'Martial ' : 'Simple ') + (w.ranged ? 'ranged' : 'melee');
+        var props = (w.props || '').split('').map(function (p) { return PROP_NAMES[p]; }).filter(Boolean);
+        var die = String(w.dmg || '').replace(/\s/g, '').toLowerCase();
+        return { id: w.id, label: w.name, group: (w.magic ? 'Magic · ' : '') + grp, order: (w.magic ? 10 : 0) + GROUP_ORDER.indexOf(grp),
+          meta: w.cat + ' · ' + (w.ranged ? 'ranged' : 'melee') + ' · ' + w.dmg + ' ' + w.type + (props.length ? ' · ' + props.join(', ') : '') + (w.bonusHit ? ' · +' + w.bonusHit : '') + (w.mastery ? ' · ' + w.mastery : ''),
+          search: (w.name + ' ' + w.type + ' ' + props.join(' ') + ' ' + (w.mastery || '')).toLowerCase(),
+          facets: { cat: w.cat, range: w.ranged ? 'ranged' : 'melee', dtype: w.type, die: die, prop: props, mastery: w.mastery || '', magic: w.magic ? 'magic' : 'mundane', src: w.src || 'SRD 5.2' } };
+      }).sort(function (a, c) { return a.order - c.order || a.label.localeCompare(c.label); });
+      filters = [
+        { id: 'cat', label: 'Category', values: [['simple', 'Simple'], ['martial', 'Martial']] },
+        { id: 'range', label: 'Melee / ranged', values: [['melee', 'Melee'], ['ranged', 'Ranged']] },
+        { id: 'die', label: 'Damage die', values: facetValues(opts, 'die', function (a, c) { return (DIE_ORDER.indexOf(a) + 1 || 99) - (DIE_ORDER.indexOf(c) + 1 || 99) || a.localeCompare(c); }) },
+        { id: 'dtype', label: 'Damage type', values: facetValues(opts, 'dtype') },
+        { id: 'prop', label: 'Property', values: Object.keys(PROP_NAMES).map(function (k) { return [PROP_NAMES[k], PROP_NAMES[k]]; }) },
+        { id: 'mastery', label: 'Mastery', values: Object.keys(D.MASTERY).map(function (k) { return [k, k]; }) },
+        { id: 'magic', label: 'Magic', values: [['mundane', 'Mundane'], ['magic', 'Magic']] },
+        sourceFilter(opts)];
+      return { title: 'Add a weapon', options: opts, filters: filters };
+    }
+    if (kind === 'armor') {
+      var typeName = { none: 'No armor', light: 'Light armor', medium: 'Medium armor', heavy: 'Heavy armor' };
+      var typeOrder = ['none', 'light', 'medium', 'heavy'];
+      opts = D.ARMOR.map(function (a) {
+        return { id: a.id, label: a.name, group: (a.magic ? 'Magic · ' : '') + typeName[a.type], order: (a.magic ? 10 : 0) + typeOrder.indexOf(a.type),
+          meta: a.ac ? 'AC ' + (a.ac + (a.bonusAc || 0)) + (a.type === 'light' ? ' + Dex' : a.type === 'medium' ? ' + Dex (max 2)' : '') + (a.str ? ' · Str ' + a.str : '') + (a.stealthDis ? ' · Stealth disadvantage' : '') : 'AC 10 + Dex',
+          search: (a.name + ' ' + a.type).toLowerCase(), facets: { type: a.type, magic: a.magic ? 'magic' : 'mundane', src: a.src || 'SRD 5.2' } };
+      }).sort(function (a, c) { return a.order - c.order || (a.order < 10 ? 0 : a.label.localeCompare(c.label)); });
+      return { title: 'Choose armor', current: gear.armor, options: opts, filters: [
+        { id: 'type', label: 'Type', values: [['light', 'Light'], ['medium', 'Medium'], ['heavy', 'Heavy'], ['none', 'No armor']] },
+        { id: 'magic', label: 'Magic', values: [['mundane', 'Mundane'], ['magic', 'Magic']] }, sourceFilter(opts)] };
+    }
+    if (kind === 'shield') {
+      opts = [{ id: 'none', label: 'No shield', meta: '', search: 'no shield none', facets: { magic: 'mundane' } }].concat((D.SHIELDS || []).map(function (sh) {
+        return { id: sh.id, label: sh.name, meta: '+' + (2 + (sh.bonus || 0)) + ' AC', group: sh.itemId ? 'Magic shields' : 'Shields', search: sh.name.toLowerCase(), facets: { magic: sh.itemId ? 'magic' : 'mundane' } };
+      }));
+      return { title: 'Choose a shield', current: gear.shield === true ? 'shield' : gear.shield || 'none', options: opts, filters: [{ id: 'magic', label: 'Magic', values: [['mundane', 'Mundane'], ['magic', 'Magic']] }] };
     }
     if (kind === 'item') {
-      return { title: 'Add an item', options: D.ITEMS.map(function (it) {
+      opts = D.ITEMS.map(function (it) {
         return { id: it.id, label: it.name, meta: [D.ITEM_TYPE[it.type] || it.type, it.rarity, it.attune ? 'attunement' : '', it.ed === '2024' ? '2024' : ''].filter(Boolean).join(' · '),
-          desc: it.text, group: '', search: (it.name + ' ' + (it.rarity || '') + ' ' + (D.ITEM_TYPE[it.type] || '')).toLowerCase() };
-      }).sort(function (a, b) { return a.label.localeCompare(b.label); }) };
+          desc: it.text, search: (it.name + ' ' + (it.rarity || '') + ' ' + (D.ITEM_TYPE[it.type] || '')).toLowerCase(),
+          facets: { type: D.ITEM_TYPE[it.type] || it.type || 'Other', rarity: it.rarity || (it.magic ? 'unknown' : 'mundane'), attune: it.attune ? 'yes' : 'no', magic: it.magic ? 'magic' : 'mundane', ed: it.ed, src: it.src || '' } };
+      }).sort(function (a, c) { return a.label.localeCompare(c.label); });
+      return { title: 'Add an item', options: opts, filters: [
+        { id: 'type', label: 'Type', values: facetValues(opts, 'type') },
+        { id: 'rarity', label: 'Rarity', values: ['mundane', 'common', 'uncommon', 'rare', 'very rare', 'legendary', 'artifact', 'varies'].map(function (r) { return [r, r]; }) },
+        { id: 'magic', label: 'Magic', values: [['mundane', 'Mundane'], ['magic', 'Magic']] },
+        { id: 'attune', label: 'Attunement', values: [['yes', 'Requires attunement'], ['no', 'No attunement']] },
+        { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
+        sourceFilter(opts)] };
     }
     if (kind === 'monster') {
-      return { title: 'Add a creature', options: (D.MONSTERS || []).map(function (m) {
-        return { id: m.id, label: m.name, meta: 'CR ' + m.cr + ' · ' + (D.SIZE_NAME[m.size] || m.size) + ' ' + m.type + (m.ed === '2024' ? ' · 2024' : ''), desc: '',
-          search: (m.name + ' ' + m.type + ' cr' + m.cr).toLowerCase() };
-      }).sort(function (a, b) { return a.label.localeCompare(b.label); }) };
+      var crs = ['0', '1/8', '1/4', '1/2'].concat(Array.from({ length: 30 }, function (_, i) { return String(i + 1); }));
+      opts = (D.MONSTERS || []).map(function (m) {
+        var type = (m.type || '').split(/[ ,(]/)[0].toLowerCase();
+        return { id: m.id, label: m.name, meta: (m.cr ? 'CR ' + m.cr + ' · ' : '') + (D.SIZE_NAME[m.size] || m.size || '') + ' ' + m.type + (m.ed === '2024' ? ' · 2024' : ''),
+          search: (m.name + ' ' + m.type).toLowerCase(), cr: D.crValue(m.cr),
+          facets: { type: type, size: D.SIZE_NAME[m.size] || m.size, ed: m.ed, src: m.src || '', fly: /fly/i.test(m.speed) ? 'fly' : '', swim: /swim/i.test(m.speed) ? 'swim' : '' } };
+      }).sort(function (a, c) { return a.label.localeCompare(c.label); });
+      return { title: 'Add a creature', options: opts, filters: [
+        { id: 'crmax', label: 'Max CR', values: crs.map(function (c) { return [c, 'CR ' + c + ' or lower']; }), test: function (o, v) { return o.cr <= D.crValue(v); } },
+        { id: 'crmin', label: 'Min CR', values: crs.map(function (c) { return [c, 'CR ' + c + ' or higher']; }), test: function (o, v) { return o.cr >= D.crValue(v); } },
+        { id: 'type', label: 'Type', values: facetValues(opts, 'type') },
+        { id: 'size', label: 'Size', values: ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'].map(function (z) { return [z, z]; }) },
+        { id: 'move', label: 'Movement', values: [['fly', 'Can fly'], ['swim', 'Can swim']], test: function (o, v) { return o.facets[v] === v; } },
+        { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
+        sourceFilter(opts)] };
     }
-    return { title: '', options: [] };
+    if (kind === 'class' || kind === 'species' || kind === 'background') {
+      var list = kind === 'class' ? D.CLASSES : kind === 'species' ? D.SPECIES : D.BACKGROUNDS;
+      opts = list.map(function (x) {
+        var meta = kind === 'class' ? 'd' + x.hd + ' · ' + x.subclasses.length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
+          kind === 'species' ? (x.size || '') + ' · Speed ' + x.speed + (x.darkvision ? ' · Darkvision ' + x.darkvision : '') :
+          x.custom ? 'any abilities' : x.legacy ? '2014 background' : 'Feat: ' + (x.featName || '');
+        return { id: x.id, label: x.name, group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2, meta: meta + (x.src ? ' · ' + x.src : ''),
+          search: (x.name + ' ' + (x.src || '')).toLowerCase(), facets: { rules: rulesGroup(x), src: x.src || 'SRD 5.2', size: x.size || '' } };
+      }).sort(function (a, c) { return a.order - c.order || (a.order ? a.label.localeCompare(c.label) : 0); });
+      filters = [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, sourceFilter(opts)];
+      if (kind === 'species') filters.splice(1, 0, { id: 'size', label: 'Size', values: facetValues(opts, 'size') });
+      return { title: 'Choose a ' + kind, current: kind === 'class' ? b.classId : kind === 'species' ? b.speciesId : b.backgroundId, options: opts, filters: filters };
+    }
+    return { title: '', options: [], filters: [] };
+  }
+  function setClass(id) {
+    var b = cur();
+    b.classId = id;
+    var c = D.cls(id), gearKey = c ? c.name.toLowerCase().split(/[ (]/)[0] : '';
+    b.gear = JSON.parse(JSON.stringify(DEFAULT_GEAR[id] || DEFAULT_GEAR[gearKey] || { armor: 'none', shield: false, weapons: ['dagger'] }));
+    b.spells = { cantrips: [], prepared: [] };
   }
   function pickFromList(kind, id) {
     var b = cur();
     if (kind === 'weapon') { b.gear.weapons = (b.gear.weapons || []).concat(id); }
+    if (kind === 'armor') b.gear.armor = id;
+    if (kind === 'shield') b.gear.shield = id === 'none' ? false : id;
+    if (kind === 'class') setClass(id);
+    if (kind === 'species') b.speciesId = id;
+    if (kind === 'background') b.backgroundId = id;
     if (kind === 'item') {
       b.inventory = b.inventory || [];
       var same = b.inventory.filter(function (e) { return e.id === id; })[0];
@@ -967,7 +1118,10 @@
       commit(); return;
     }
     if (t.dataset.close) { closeModal(); return; }
-    if (t.dataset.openlist) { app.modal = { type: 'list', kind: t.dataset.openlist, q: '' }; renderModal(); var qi = $('#dlg-q'); if (qi) qi.focus(); return; }
+    if (t.dataset.openlist) { openList(t.dataset.openlist); return; }
+    if (t.dataset.mmore) { app.modal.limit += 150; renderModal(); return; }
+    if (t.dataset.mclear) { app.modal.f = {}; app.modal.limit = 150; renderModal(); return; }
+    if (t.dataset.pickone) { var rk = app.modal.key; closeModal(); setChoice(rk, t.dataset.pickone); return; }
     if (t.dataset.listpick) { pickFromList(app.modal.kind, t.dataset.listpick); return; }
     if (t.dataset.iteminfo) { openDetail('item:' + t.dataset.iteminfo); return; }
     if (t.dataset.spellinfo) { openDetail('spell:' + t.dataset.spellinfo); return; }
@@ -1045,13 +1199,7 @@
       b.base[a] = Math.max(1, Math.min(30, v));
       commit(); return;
     }
-    if (t.id === 'f-class') {
-      b.classId = t.value;
-      var c = D.cls(t.value), gearKey = c ? c.name.toLowerCase().split(/[ (]/)[0] : '';
-      b.gear = JSON.parse(JSON.stringify(DEFAULT_GEAR[t.value] || DEFAULT_GEAR[gearKey] || { armor: 'none', shield: false, weapons: ['dagger'] }));
-      b.spells = { cantrips: [], prepared: [] };
-      commit(); return;
-    }
+    if (t.dataset.mfilter) { app.modal.f[t.dataset.mfilter] = t.value; app.modal.limit = 150; renderModal(); return; }
     if (t.id === 'f-species') { b.speciesId = t.value; commit(); return; }
     if (t.id === 'f-bg') { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
@@ -1082,7 +1230,7 @@
   }
 
   function onInput(e) {
-    if (e.target.id === 'dlg-q' && app.modal) { app.modal.q = e.target.value; renderModal(); }
+    if (e.target.id === 'dlg-q' && app.modal) { app.modal.q = e.target.value; app.modal.limit = 150; renderModal(); }
     if (e.target.id === 'lib-q') { app.lib.q = e.target.value; $('#lib-results').innerHTML = libResults(); }
   }
   function onSubmit(e) {
