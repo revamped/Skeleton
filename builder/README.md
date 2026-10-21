@@ -22,6 +22,15 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
   - Extra Attack and Unarmored Defense don't stack
   - imported classes read their requirements and proficiencies from the compendium's multiclass text
 - **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
+- **Play tab**: track a character during a session at the viewed level.
+  - **Health**: HP and temp HP bars with Damage, Heal and Temp HP (temp HP absorbs damage first), death saves at 0 HP, a temporary AC bonus, Exhaustion and Heroic Inspiration.
+  - **Turn markers**: Action, Bonus Action, Reaction, each attack of the Attack action, and once-per-turn features such as Sneak Attack. **Next turn** clears them.
+  - **Limited uses**: class resources (Rages, Focus Points, Channel Divinity, Second Wind, Sorcery Points…), Lay On Hands and Bardic Inspiration pools, and features or traits usable once or a few times per rest. Each is tagged Short or Long Rest.
+  - **Spell slots and Pact slots**, plus a spell list where **Cast** spends a slot and rolls the damage or healing scaled to that slot. Cantrips scale with level.
+  - **Hit Dice**: spend them to heal (they roll the die plus your Con modifier).
+  - **Short and Long Rest buttons**: restore what each rest restores.
+  - **Your trackers**: custom counters (potions, Luck points…) that reset on a turn, a rest, or manually.
+- **Dice**: click any attack bonus, damage, save, skill, ability check, initiative, class die (Sneak Attack, Martial Arts…) or any dice in feature, spell, item or creature text to roll it. Rolls go to a dice tray (bottom right) with Advantage/Disadvantage for d20 rolls, a Critical hit toggle that doubles damage dice, quick d4–d100 buttons and a roll history. The summary panel shows the HP bar on every tab.
 - **Printable sheet** (Sheet tab → Printable sheet): a two-page, letter-size character sheet for the viewed level:
   - abilities and saves, skills, combat stats, HP/death-save boxes, attacks, class resources and proficiencies
   - features and traits, with an option for full text

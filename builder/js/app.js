@@ -7,7 +7,8 @@
   var STORE_KEY = 'levelwright.v1';
 
   var app = { builds: [], currentId: null, tab: 'build', showAll: true, modal: null, deleteArmed: false,
-    lib: { cat: 'spells', q: '', f1: '', f2: '' }, importing: '', clearArmed: false, ready: false };
+    lib: { cat: 'spells', q: '', f1: '', f2: '' }, importing: '', clearArmed: false, ready: false,
+    rolls: [], rollMode: '', rollCrit: false, trayOpen: false };
   var ev = null;
 
   /* ---------- Helpers ---------- */
@@ -332,14 +333,67 @@
   }
 
   // Paragraph formatting for compendium text.
-  function fmt(text) {
-    return '<p>' + esc(text || '').replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>').replace(/\t/g, ' ') + '</p>';
+  function fmt(text, label) {
+    return rollify('<p>' + esc(text || '').replace(/\n{2,}/g, '</p><p>').replace(/\n/g, '<br>').replace(/\t/g, ' ') + '</p>', label);
   }
-  function longText(text) {
+  function longText(text, label) {
     text = text || '';
-    if (text.length <= 280) return '<div class="desc prose">' + fmt(text) + '</div>';
+    if (text.length <= 280) return '<div class="desc prose">' + fmt(text, label) + '</div>';
     var cut = text.slice(0, 220).replace(/\s+\S*$/, '');
-    return '<details class="more"><summary><span class="desc">' + esc(cut) + '… </span><span class="more-link">Read more</span></summary><div class="desc prose">' + fmt(text) + '</div></details>';
+    return '<details class="more"><summary><span class="desc">' + esc(cut) + '… </span><span class="more-link">Read more</span></summary><div class="desc prose">' + fmt(text, label) + '</div></details>';
+  }
+
+  /* ---------- Dice ---------- */
+
+  // A button that rolls a dice expression into the roll tray.
+  function rollBtn(expr, label, text) {
+    return '<button type="button" class="roll" data-roll="' + esc(expr) + '" data-rlabel="' + esc(label || '') + '" title="Roll ' + esc(expr) + '">' + (text == null ? esc(expr) : text) + '</button>';
+  }
+  function d20Btn(mod, label, text) { return rollBtn('1d20' + sign(mod), label, text == null ? esc(sign(mod)) : text); }
+  // Turns dice expressions in (already escaped) HTML text into roll buttons, leaving tags alone.
+  function rollify(html, label) {
+    return html.split(/(<[^>]+>)/).map(function (part) {
+      if (part[0] === '<') return part;
+      return part.replace(D.DICE_RE, function (m) { return rollBtn(m.replace(/\u2212/g, '-').replace(/\s+/g, ''), label, m); });
+    }).join('');
+  }
+  function doRoll(expr, label) {
+    var isD20 = /^1d20([+-]\d+)?$/.test(expr.replace(/\s+/g, ''));
+    var res = D.rollDice(expr, isD20 ? { mode: app.rollMode } : { crit: app.rollCrit });
+    res.label = label || ''; res.at = Date.now();
+    app.rolls.unshift(res); app.rolls.length = Math.min(app.rolls.length, 30);
+    if (!isD20 && app.rollCrit) app.rollCrit = false;
+    // On phones the tray stays collapsed; its tab shows the latest result.
+    if (window.innerWidth > 700) app.trayOpen = true;
+    renderTray();
+    return res;
+  }
+  function rollPartsHtml(r) {
+    return r.parts.map(function (p, i) {
+      if (p.k != null) return '<span class="rp-k">' + (p.k < 0 ? '− ' + -p.k : (i ? '+ ' : '') + p.k) + '</span>';
+      var faces = p.rolls.map(function (v, j) {
+        var dropped = p.kept != null && (j === 1 ? p.rolls[1] !== p.kept || p.rolls[0] === p.kept : p.rolls[0] !== p.kept);
+        return '<span class="die' + (p.s === 20 && v === 20 ? ' nat20' : p.s === 20 && v === 1 ? ' nat1' : '') + (dropped ? ' dropped' : '') + '">' + v + '</span>';
+      }).join('');
+      return (i ? '<span class="rp-k">' + (p.sign < 0 ? '−' : '+') + '</span>' : '') + '<span class="rp-d"><small>' + p.n + 'd' + p.s + '</small>' + faces + '</span>';
+    }).join('');
+  }
+  function renderTray() {
+    var el = $('#roll-tray');
+    if (!el) { el = document.createElement('aside'); el.id = 'roll-tray'; el.setAttribute('aria-label', 'Dice rolls'); document.body.appendChild(el); }
+    var last = app.rolls[0];
+    el.className = 'tray' + (app.trayOpen ? ' open' : '');
+    el.innerHTML = '<button type="button" class="tray-tab" data-tray="toggle" aria-expanded="' + app.trayOpen + '">' + ico('d20') + '<span>' + (last ? esc(last.label || last.expr) + ': <b>' + last.total + '</b>' : 'Dice') + '</span></button>' +
+      (app.trayOpen ? '<div class="tray-body"><div class="tray-tools"><div class="seg" role="group" aria-label="d20 rolls">' +
+        [['dis', 'Disadvantage'], ['', 'Normal'], ['adv', 'Advantage']].map(function (m) { return '<button type="button" data-rollmode="' + m[0] + '" aria-pressed="' + (app.rollMode === m[0]) + '">' + m[1] + '</button>'; }).join('') + '</div>' +
+        '<label class="toggle"><input type="checkbox" id="roll-crit"' + (app.rollCrit ? ' checked' : '') + '> Critical hit (double damage dice)</label></div>' +
+        '<div class="tray-quick">' + [4, 6, 8, 10, 12, 20, 100].map(function (n) { return rollBtn('1d' + n, 'd' + n, 'd' + n); }).join('') + '</div>' +
+        '<ol class="tray-list" aria-live="polite">' + (app.rolls.length ? app.rolls.map(function (r) {
+          var tag = r.nat === 20 && r.parts.length && r.parts[0].s === 20 ? '<span class="pill pill-ok">Natural 20</span>' : r.nat === 1 && r.parts[0].s === 20 ? '<span class="pill pill-todo">Natural 1</span>' : '';
+          return '<li><div class="tr-head"><span>' + esc(r.label || 'Roll') + ' <span class="muted">' + esc(r.expr) + (r.mode ? ' · ' + (r.mode === 'adv' ? 'advantage' : 'disadvantage') : '') + (r.crit ? ' · critical' : '') + '</span></span><b class="tr-total">' + r.total + '</b></div>' +
+            '<div class="tr-parts">' + rollPartsHtml(r) + tag + '</div></li>';
+        }).join('') : '<li class="muted">Click any dice, attack or modifier to roll it.</li>') + '</ol>' +
+        (app.rolls.length ? '<div class="tray-foot"><button type="button" class="btn btn-small" data-tray="clear">Clear</button></div>' : '') + '</div>' : '');
   }
 
   function renderOrigin() {
@@ -455,11 +509,11 @@
 
   function renderSummary() {
     var b = cur(), lv = ev.levels[b.level - 1], d = lv.d, s = lv.state, base = ev.levels[0].state;
-    var vit = [['AC', d.ac], ['HP', d.hp], ['Speed', d.speed], ['Init', sign(d.init)], ['Prof', sign(d.pb)], ['Passive', d.passivePerception]];
+    var vit = [['AC', d.ac + (play().acBonus || 0)], ['HP', d.hp], ['Speed', d.speed], ['Init', sign(d.init)], ['Prof', sign(d.pb)], ['Passive', d.passivePerception]];
     var html = '<section class="card"><div class="sum-head"><div class="sum-icons">' + lv.d.classLevels.map(function (c) { return badge(D.classIcon(D.cls(c.id) || { name: c.name })); }).join('') +
       badge(D.speciesIcon(speciesBase(ev.species.name))) + badge(D.backgroundIcon(ev.background.name)) + '</div><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + (ev.ruleset === 'legacy' ? ' · Legacy' : '') + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
       '<span class="muted">' + esc(ev.multiclass ? classSplit(lv) : ev.cls.name + (subName(lv) ? ' · ' + subName(lv) : '')) + ' · ' + esc(ev.background.name) + '</span></div>' +
-      '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' + summaryGear(b) +
+      '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' + hpBar(d, true) + summaryGear(b) +
       '<div class="abil-row">' + D.ABILITIES.map(function (a) {
         return '<div class="abil' + (s.abilities[a] > base.abilities[a] ? ' raised' : '') + '" title="' + D.ABILITY_NAMES[a] + (d.saves[a].prof ? ', proficient save' : '') + '">' + ico(D.abilityIcon(a), 'abil-ico') + '<span class="eyebrow">' + a + '</span><b>' + s.abilities[a] + '</b><small>' + sign(d.mods[a]) + '</small></div>';
       }).join('') + '</div>';
@@ -497,23 +551,23 @@
 
     var abilities = '<section class="card"><div class="card-head"><h3>Abilities &amp; saves</h3></div><div class="card-body"><div class="rows">' +
       D.ABILITIES.map(function (a) {
-        return '<div class="row"><span><span class="prof-dot' + (d.saves[a].prof ? ' p1' : '') + '"></span>' + ico(D.abilityIcon(a), 'skill-ico') + D.ABILITY_NAMES[a] + ' <span class="muted num">' + s.abilities[a] + ' (' + sign(d.mods[a]) + ')</span></span><span class="v">save ' + sign(d.saves[a].total) + '</span></div>';
+        return '<div class="row"><span><span class="prof-dot' + (d.saves[a].prof ? ' p1' : '') + '"></span>' + ico(D.abilityIcon(a), 'skill-ico') + D.ABILITY_NAMES[a] + ' <span class="muted num">' + s.abilities[a] + ' ' + d20Btn(d.mods[a], D.ABILITY_NAMES[a] + ' check', '(' + sign(d.mods[a]) + ')') + '</span></span><span class="v">' + d20Btn(d.saves[a].total, D.ABILITY_NAMES[a] + ' save', 'save ' + sign(d.saves[a].total)) + '</span></div>';
       }).join('') + '</div>' + (s.flags.auraOfProtection ? '<p class="desc">Saves include Aura of Protection (' + sign(Math.max(1, d.mods.cha)) + ').</p>' : '') + '</div></section>';
 
     var skills = '<section class="card"><div class="card-head"><h3>Skills</h3><span class="muted">● proficient · ◉ expertise</span></div><div class="card-body"><div class="rows">' +
       Object.keys(D.SKILLS).map(function (k) {
         var sk = d.skills[k];
-        return '<div class="row"><span><span class="prof-dot' + (sk.level ? ' p' + sk.level : '') + '"></span>' + ico(D.skillIcon(k), 'skill-ico') + D.SKILLS[k].name + ' <span class="muted">' + abbr(D.SKILLS[k].ability) + '</span></span><span class="v">' + sign(sk.total) + '</span></div>';
+        return '<div class="row"><span><span class="prof-dot' + (sk.level ? ' p' + sk.level : '') + '"></span>' + ico(D.skillIcon(k), 'skill-ico') + D.SKILLS[k].name + ' <span class="muted">' + abbr(D.SKILLS[k].ability) + '</span></span><span class="v">' + d20Btn(sk.total, D.SKILLS[k].name) + '</span></div>';
       }).join('') + '</div></div></section>';
 
     var combat = '<section class="card"><div class="card-head"><h3>Combat</h3></div><div class="card-body"><div class="rows">' +
       [['Armor Class', d.ac + ' <span class="muted">(' + esc(d.acHow) + ')</span>'], ['Hit Points', d.hp + ' <span class="muted">(' + d.hitDice + ')</span>'],
-        ['Initiative', sign(d.init)], ['Speed', d.speed + ' ft'], ['Attacks per action', d.attacksPerAction], ['Critical hit on', d.crit === 20 ? '20' : d.crit + '–20']]
+        ['Initiative', d20Btn(d.init, 'Initiative')], ['Speed', d.speed + ' ft'], ['Attacks per action', d.attacksPerAction], ['Critical hit on', d.crit === 20 ? '20' : d.crit + '–20']]
         .map(function (r) { return '<div class="row"><span>' + r[0] + '</span><span class="v">' + r[1] + '</span></div>'; }).join('') + '</div>' +
       attackTable(d) + '<p class="desc">Change armor, shield, weapons and magic items in the <button type="button" class="linklike" data-tab="gear">Gear</button> tab.</p></div></section>';
 
     var resources = d.columns.length || d.spell ? '<section class="card"><div class="card-head"><h3>Class resources</h3></div><div class="card-body"><div class="rows">' +
-      d.columns.map(function (c) { return '<div class="row"><span>' + esc(c.label) + '</span><span class="v">' + esc(c.value) + '</span></div>'; }).join('') +
+      d.columns.map(function (c) { return '<div class="row"><span>' + esc(c.label) + '</span><span class="v">' + rollify(esc(c.value), c.label) + '</span></div>'; }).join('') +
       (d.spellcasters || []).map(function (e) {
         var pre = d.spellcasters.length > 1 ? esc(classBase(e.className)) + ': ' : '';
         return '<div class="row"><span>' + pre + 'Spell save DC / attack</span><span class="v">' + e.dc + ' / ' + sign(e.attack) + '</span></div>' +
@@ -527,13 +581,13 @@
     ev.levels.slice(0, b.level).forEach(function (l) {
       l.features.forEach(function (f) {
         if (f.name === 'Proficiencies') return;
-        featureRefs.push('<div class="feature-ref"><b>' + esc(f.name) + ' <span class="muted">· ' + (f.source === 'Class' ? (ev.multiclass ? esc(classBase(l.cls.name)) + ' ' + l.classLevel : 'Level ' + l.level) : esc(f.source) + ' ' + l.classLevel) + '</span></b>' + summaryOfChoices(f) + (f.long ? longText(f.desc) : '<span>' + esc(f.desc) + '</span>') + '</div>');
+        featureRefs.push('<div class="feature-ref"><b>' + esc(f.name) + ' <span class="muted">· ' + (f.source === 'Class' ? (ev.multiclass ? esc(classBase(l.cls.name)) + ' ' + l.classLevel : 'Level ' + l.level) : esc(f.source) + ' ' + l.classLevel) + '</span></b>' + summaryOfChoices(f) + (f.long ? longText(f.desc, f.name) : '<span>' + rollify(esc(f.desc), f.name) + '</span>') + '</div>');
       });
     });
     var features = '<section class="card"><div class="card-head"><h3>Class features</h3></div><div class="card-body">' + featureRefs.join('') + '</div></section>';
 
-    var traitRefs = ev.species.traits.map(function (t) { return '<div class="feature-ref"><b>' + esc(t[0]) + '</b>' + longText(t[1]) + '</div>'; }).join('');
-    var featRefs = s.feats.map(function (f) { return '<div class="feature-ref"><b>' + esc(f.name) + ' <span class="muted">· ' + esc(f.source) + '</span></b>' + longText(f.desc) + '</div>'; }).join('');
+    var traitRefs = ev.species.traits.map(function (t) { return '<div class="feature-ref"><b>' + esc(t[0]) + '</b>' + longText(t[1], t[0]) + '</div>'; }).join('');
+    var featRefs = s.feats.map(function (f) { return '<div class="feature-ref"><b>' + esc(f.name) + ' <span class="muted">· ' + esc(f.source) + '</span></b>' + longText(f.desc, f.name) + '</div>'; }).join('');
     var traits = '<section class="card"><div class="card-head"><h3>Species traits &amp; feats</h3></div><div class="card-body">' + traitRefs + (featRefs || '') + '</div></section>';
 
     var profRows = [
@@ -703,6 +757,151 @@
       return '<span class="chip' + (x.ok ? '' : ' bad') + (isNew ? ' new' : '') + '" title="' + esc(x.note || (isNew ? 'Learned at this level' : '')) + '">' + (isNew ? '<span class="chip-new">new</span> ' : '') + spellLink(x.name) + (x.note ? ' <small>· ' + esc(x.note) + '</small>' : '') +
         '<button type="button" data-rmspell="' + kind + '" data-cls="' + esc(clsId || '') + '" data-cl="' + (cl || 1) + '" data-value="' + esc(x.name) + '" aria-label="Remove ' + esc(x.name) + '">×</button></span>';
     };
+  }
+
+  /* ---------- Rendering: play (table tracking) ---------- */
+
+  // Play state lives on the build: current HP, used resources and turn markers.
+  function play() {
+    var b = cur();
+    if (!b.play) b.play = { hp: null, temp: 0, acBonus: 0, used: {}, death: { s: 0, f: 0 }, exh: 0, insp: false, turn: {}, round: 1, custom: [] };
+    return b.play;
+  }
+  function curHp(d) { var p = play(); return p.hp == null ? d.hp : Math.max(0, Math.min(p.hp, d.hp)); }
+  function used(id) { return play().used[id] || 0; }
+  function hpBar(d, compact) {
+    var p = play(), hp = curHp(d), pct = d.hp ? Math.round(hp / d.hp * 100) : 0, tmp = p.temp || 0;
+    var tone = pct > 50 ? 'ok' : pct > 25 ? 'mid' : 'low';
+    return '<div class="hpbar' + (compact ? ' compact' : '') + '"' + (compact ? ' data-tab="play" role="button" tabindex="0" title="Track HP in the Play tab"' : '') + '>' +
+      '<div class="bar-label"><span>Hit points</span><b>' + hp + ' / ' + d.hp + (tmp ? ' <span class="temp-tag">+' + tmp + ' temp</span>' : '') + '</b></div>' +
+      '<div class="bar" role="meter" aria-label="Hit points" aria-valuemin="0" aria-valuemax="' + d.hp + '" aria-valuenow="' + hp + '">' +
+      '<span class="fill ' + tone + '" style="width:' + pct + '%"></span>' + (tmp ? '<span class="fill temp" style="width:' + Math.min(100, Math.round(tmp / d.hp * 100)) + '%"></span>' : '') + '</div></div>';
+  }
+  // Clickable pips: the first `n` of `max` are spent. `up` pips fill as they count up (Exhaustion, death saves).
+  function pips(id, max, n, label, up) {
+    var out = '';
+    for (var i = 0; i < max; i++) out += '<button type="button" class="pip' + (i < n ? ' spent' : '') + '" data-pip="' + esc(id) + '" data-i="' + i + '" data-max="' + max + '" aria-label="' + esc(label) + ' ' + (i + 1) + (i < n ? ' (used)' : '') + '"></button>';
+    return '<span class="pips' + (up ? ' up ' + up : '') + '">' + out + '</span>';
+  }
+  function counterRow(id, name, max, reset, note, extra) {
+    var n = Math.min(used(id), max), left = max - n;
+    var ctl = max <= 12 ? pips(id, max, n, name) :
+      '<span class="cnt"><button type="button" class="btn btn-small" data-cnt="' + esc(id) + '" data-delta="1" data-max="' + max + '" aria-label="Spend one">−</button>' +
+      '<span class="bar small"><span class="fill ok" style="width:' + Math.round(left / max * 100) + '%"></span></span>' +
+      '<button type="button" class="btn btn-small" data-cnt="' + esc(id) + '" data-delta="-1" data-max="' + max + '" aria-label="Regain one">+</button></span>';
+    return '<div class="trk"><div class="trk-name"><b>' + esc(name) + '</b> <span class="muted">' + left + ' / ' + max + '</span>' +
+      (reset ? ' <span class="pill pill-plain">' + esc(reset) + '</span>' : '') + (note ? ' <span class="muted">' + esc(note) + '</span>' : '') + '</div>' + ctl + (extra || '') + '</div>';
+  }
+  var RESET_LABEL = { short: 'Short Rest', long: 'Long Rest', turn: 'each turn', none: 'manual' };
+
+  function renderPlay() {
+    var b = cur(), lv = ev.levels[b.level - 1], d = lv.d, s = lv.state, p = play();
+    var pr = D.playResources(b, ev), hp = curHp(d);
+
+    var vitals = '<section class="card"><div class="card-head"><h3>Health &amp; defense</h3><span class="muted">Level ' + b.level + '</span></div><div class="card-body">' +
+      hpBar(d) +
+      '<form class="hp-form" id="hp-form"><label class="sr" for="hp-amt">Amount</label><input id="hp-amt" type="number" min="0" inputmode="numeric" placeholder="Amount">' +
+      '<button type="button" class="btn btn-small" data-hp="dmg">Damage</button><button type="button" class="btn btn-small" data-hp="heal">Heal</button><button type="button" class="btn btn-small" data-hp="temp">Temp HP</button></form>' +
+      (hp === 0 ? '<div class="death"><b>Death saves</b><span>Successes ' + pips('death:s', 3, p.death.s, 'Death save success', 'good') + '</span><span>Failures ' + pips('death:f', 3, p.death.f, 'Death save failure', 'bad') + '</span>' +
+        rollBtn('1d20', 'Death save', 'Roll death save') + '</div>' : '') +
+      '<div class="play-stats"><div class="stat-box"><span class="eyebrow">Armor Class</span><b>' + (d.ac + (p.acBonus || 0)) + '</b><span class="cnt"><button type="button" class="btn btn-small" data-acb="-1" aria-label="Lower AC">−</button>' +
+        '<small>' + (p.acBonus ? sign(p.acBonus) + ' temporary' : 'base') + '</small><button type="button" class="btn btn-small" data-acb="1" aria-label="Raise AC">+</button></span></div>' +
+      '<div class="stat-box"><span class="eyebrow">Initiative</span><b>' + d20Btn(d.init, 'Initiative') + '</b><small>Speed ' + d.speed + ' ft</small></div>' +
+      '<div class="stat-box"><span class="eyebrow">Exhaustion</span>' + pips('exh', 6, p.exh || 0, 'Exhaustion level', 'bad') + '<small>' + (p.exh ? '−' + 2 * p.exh + ' to D20 Tests, −' + 5 * p.exh + ' ft Speed' : 'None') + '</small></div>' +
+      '<div class="stat-box"><span class="eyebrow">Heroic Inspiration</span><button type="button" class="btn btn-small' + (p.insp ? ' btn-primary' : '') + '" data-insp="1" aria-pressed="' + !!p.insp + '">' + (p.insp ? 'Have it' : 'None') + '</button></div></div>' +
+      '</div></section>';
+
+    var attacks = Math.max(1, d.attacksPerAction || 1);
+    var turnMarks = [{ id: 'turn:action', name: 'Action' }, { id: 'turn:bonus', name: 'Bonus Action' }, { id: 'turn:reaction', name: 'Reaction' }].concat(pr.turn);
+    var turn = '<section class="card"><div class="card-head"><h3>This turn</h3><span class="muted">Round ' + (p.round || 1) + '</span><button type="button" class="btn btn-small btn-primary" data-nextturn="1">Next turn</button></div><div class="card-body">' +
+      '<div class="markers">' + turnMarks.map(function (t) {
+        var on = !!(p.turn || {})[t.id];
+        return '<button type="button" class="marker' + (on ? ' spent' : '') + '" data-turn="' + esc(t.id) + '" aria-pressed="' + on + '">' + esc(t.name) + '</button>';
+      }).join('') + '</div>' +
+      (attacks > 1 ? counterRow('turn:attacks', 'Attacks this action', attacks, 'each turn') : '') +
+      '<p class="desc">Markers for once-per-turn features clear on <b>Next turn</b>.</p></div></section>';
+
+    var rests = '<section class="card"><div class="card-head"><h3>Rests &amp; Hit Dice</h3></div><div class="card-body">' +
+      '<div class="chips"><button type="button" class="btn" data-rest="short">Short Rest</button><button type="button" class="btn btn-primary" data-rest="long">Long Rest</button></div>' +
+      pr.hitDice.map(function (h) {
+        var left = h.max - Math.min(used(h.id), h.max);
+        return counterRow(h.id, 'Hit Dice (d' + h.die + ')', h.max, 'Long Rest', '', left ? ' <button type="button" class="btn btn-small" data-hd="' + h.die + '">Spend 1d' + h.die + ' ' + sign(d.mods.con) + '</button>' : '');
+      }).join('') +
+      '<p class="desc">A Short Rest restores Short Rest uses and Pact slots. A Long Rest restores all HP, Hit Dice, spell slots and uses, and removes one Exhaustion level.</p></div></section>';
+
+    var slots = pr.slots.length || pr.pact ? '<section class="card"><div class="card-head"><h3>Spell slots</h3>' + (d.spell ? '<span class="muted">Save DC ' + d.spell.dc + ' · Attack ' + d20Btn(d.spell.attack, 'Spell attack') + '</span>' : '') + '</div><div class="card-body">' +
+      pr.slots.map(function (sl) { return counterRow(sl.id, 'Level ' + sl.level, sl.max, 'Long Rest'); }).join('') +
+      (pr.pact ? counterRow(pr.pact.id, 'Pact slots (level ' + pr.pact.level + ')', pr.pact.max, 'Short Rest') : '') + '</div></section>' : '';
+
+    var uses = '<section class="card"><div class="card-head"><h3>Limited uses</h3><span class="muted">From your class, species and feats</span></div><div class="card-body">' +
+      (pr.counters.length ? pr.counters.map(function (c) {
+        return counterRow(c.id, c.name, c.max, RESET_LABEL[c.reset], c.shortRegain ? 'regain ' + c.shortRegain + ' on a Short Rest' : c.pool ? 'HP pool' : '');
+      }).join('') : '<p class="muted">Nothing with limited uses at this level.</p>') +
+      d.columns.filter(function (c) { return /d\d/.test(String(c.value)); }).map(function (c) {
+        return '<div class="trk"><div class="trk-name"><b>' + esc(c.label) + '</b></div>' + rollify(esc(c.value), c.label) + '</div>';
+      }).join('') + '</div></section>';
+
+    var custom = '<section class="card"><div class="card-head"><h3>Your trackers</h3><span class="muted">Anything else to count</span></div><div class="card-body">' +
+      (p.custom || []).map(function (c) {
+        return counterRow('custom:' + c.id, c.name, c.max, RESET_LABEL[c.reset], '', ' <button type="button" class="btn btn-small" data-delcustom="' + esc(c.id) + '" aria-label="Remove ' + esc(c.name) + '">×</button>');
+      }).join('') +
+      '<form class="add-custom ctr-form" id="custom-ctr-form"><label class="sr" for="ctr-name">Tracker name</label><input id="ctr-name" type="text" maxlength="40" placeholder="e.g. Potion of Healing, Luck points">' +
+      '<label class="sr" for="ctr-max">Uses</label><input id="ctr-max" type="number" min="1" max="99" value="3" inputmode="numeric">' +
+      '<label class="sr" for="ctr-reset">Resets</label><select id="ctr-reset"><option value="long">Long Rest</option><option value="short">Short Rest</option><option value="turn">Each turn</option><option value="none">Manual</option></select>' +
+      '<button type="submit" class="btn btn-small">Add</button></form></div></section>';
+
+    var combat = '<section class="card"><div class="card-head"><h3>Attacks</h3><span class="muted">Click a bonus or damage to roll</span></div><div class="card-body">' + attackTable(d) + '</div></section>';
+    return '<div class="toolbar"><h2>Play at level ' + b.level + '</h2><span class="muted">Track HP, uses and slots during a session. Rolls appear in the dice tray.</span></div>' +
+      '<div class="play-grid">' + vitals + turn + combat + playSpells(b, lv, pr) + slots + uses + rests + custom + '</div>';
+  }
+
+  // Spells with damage or healing dice, with the slot to cast them at.
+  function playSpells(b, lv, pr) {
+    var d = lv.d, casters = d.spellcasters || [];
+    var names = [];
+    casters.forEach(function (ce) { var rep = D.spellReport(b, ev, b.level, ce.clsId); rep.cantrips.concat(rep.prepared).forEach(function (x) { names.push([x.name, ce]); }); });
+    lv.state.spells.always.forEach(function (a) { names.push([a.name, casters[0] || null]); });
+    var seen = {}, rows = [];
+    names.forEach(function (n) {
+      var sp = D.SPELL_INFO && D.SPELL_INFO[n[0]];
+      if (!sp || seen[sp.name]) return;
+      seen[sp.name] = true;
+      var info = D.spellDice(sp, b.level), ce = n[1];
+      var attack = /spell attack/i.test(sp.text), save = /(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) saving throw/i.exec(sp.text);
+      if (!info && !attack && !save) return;
+      var mod = ce ? d.mods[ce.ability] : 0;
+      var avail = sp.level ? pr.slots.filter(function (sl) { return sl.level >= sp.level && used(sl.id) < sl.max; }).map(function (sl) { return { id: sl.id, level: sl.level }; }) : [];
+      if (sp.level && pr.pact && pr.pact.level >= sp.level && used(pr.pact.id) < pr.pact.max) avail.push({ id: pr.pact.id, level: pr.pact.level, pact: true });
+      var dice = info ? info.dice.replace('MOD', String(mod)).replace('+-', '-') : '';
+      var label = sp.name + (info && info.type === 'healing' ? ' healing' : ' damage');
+      rows.push('<div class="trk spell-row"><div class="trk-name">' + schoolIco(sp.name) + '<button type="button" class="linklike" data-spellinfo="' + esc(sp.name) + '">' + esc(sp.name) + '</button> <span class="muted">' + (sp.level ? 'level ' + sp.level : 'cantrip') +
+        (save ? ' · ' + save[1].slice(0, 3) + ' save DC ' + (ce ? ce.dc : '') : '') + (info && info.type ? ' · ' + info.type : '') + '</span></div><div class="chips">' +
+        (attack && ce ? d20Btn(ce.attack, sp.name + ' attack', 'Attack ' + sign(ce.attack)) : '') +
+        (sp.level ? (avail.length ? '<label class="sr" for="cast-' + esc(slug(sp.name)) + '">Slot</label><select id="cast-' + esc(slug(sp.name)) + '">' + avail.map(function (a) { return '<option value="' + a.id + '|' + a.level + '">' + (a.pact ? 'Pact ' : 'Level ') + a.level + '</option>'; }).join('') + '</select>' +
+          '<button type="button" class="btn btn-small btn-primary" data-cast="' + esc(sp.name) + '" data-mod="' + mod + '">Cast' + (info ? ' &amp; roll' : '') + '</button>' : '<span class="pill pill-todo">no slot available</span>') :
+          (dice ? rollBtn(dice, label, 'Roll ' + esc(dice)) : '')) + '</div></div>');
+    });
+    if (!rows.length) return '';
+    return '<section class="card"><div class="card-head"><h3>Spells</h3><span class="muted">Casting spends a slot; damage scales with the slot level</span></div><div class="card-body">' + rows.join('') + '</div></section>';
+  }
+  function slug(t) { return String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+
+  function rest(kind) {
+    var b = cur(), lv = ev.levels[b.level - 1], d = lv.d, p = play(), pr = D.playResources(b, ev);
+    p.turn = {};
+    delete p.used['turn:attacks'];
+    pr.counters.forEach(function (c) {
+      if (kind === 'long' || c.reset === 'short') delete p.used[c.id];
+      else if (c.shortRegain) p.used[c.id] = Math.max(0, used(c.id) - c.shortRegain);
+    });
+    if (pr.pact) delete p.used[pr.pact.id];
+    (p.custom || []).forEach(function (c) { if (c.reset === 'turn' || c.reset === 'short' || (kind === 'long' && c.reset === 'long')) delete p.used['custom:' + c.id]; });
+    if (kind === 'long') {
+      pr.slots.forEach(function (sl) { delete p.used[sl.id]; });
+      pr.hitDice.forEach(function (h) { delete p.used[h.id]; });
+      p.hp = d.hp; p.temp = 0; p.death = { s: 0, f: 0 };
+      if (p.exh) p.exh--;
+    }
   }
 
   /* ---------- Rendering: progression ---------- */
@@ -956,7 +1155,9 @@
   function attackTable(d) {
     return '<div class="table-wrap"><table><thead><tr><th>Attack</th><th class="n">Hit</th><th>Damage</th><th>Mastery</th></tr></thead><tbody>' +
       (d.attacks.length ? d.attacks.map(function (a) {
-        return '<tr><td>' + (a.name === 'Unarmed Strike' ? ico('monk') : ico(D.weaponIcon(a))) + ' ' + esc(a.name) + (a.prof ? '' : ' <span class="pill pill-todo">not proficient</span>') + '</td><td class="n">' + sign(a.hit) + '</td><td>' + dmgHtml(a.dmg) + '</td><td>' +
+        var m = /^(.*?)\s+([a-z]+)$/i.exec(a.dmg) || [a.dmg, a.dmg, ''], expr = m[1].replace(/\u2212/g, '-').replace(/\s+/g, '');
+        var dmgCell = /d\d/.test(expr) ? rollBtn(expr, a.name + ' damage', esc(m[1])) + (m[2] ? ' ' + dmgHtml(m[2]) : '') : dmgHtml(a.dmg);
+        return '<tr><td>' + (a.name === 'Unarmed Strike' ? ico('monk') : ico(D.weaponIcon(a))) + ' ' + esc(a.name) + (a.prof ? '' : ' <span class="pill pill-todo">not proficient</span>') + '</td><td class="n">' + d20Btn(a.hit, a.name + ' attack') + '</td><td>' + dmgCell + '</td><td>' +
           (a.mastery ? '<span title="' + esc(D.MASTERY[a.mastery] || '') + '">' + esc(a.mastery) + '</span>' : '<span class="muted">—</span>') + '</td></tr>';
       }).join('') : '<tr><td colspan="4" class="muted">No weapons equipped.</td></tr>') + '</tbody></table></div>';
   }
@@ -1384,7 +1585,7 @@
 
   function spellDetailHtml(sp) {
     var k = D.schoolIcon(sp.school);
-    return '<p class="muted">' + (k ? ico(k, 'ico-title') : '') + esc(spellMeta(sp)) + '</p><p><b>Components</b> ' + esc(sp.comp || '—') + '</p>' + fmt(sp.text) +
+    return '<p class="muted">' + (k ? ico(k, 'ico-title') : '') + esc(spellMeta(sp)) + '</p><p><b>Components</b> ' + esc(sp.comp || '—') + '</p>' + fmt(sp.text, sp.name) +
       '<p class="muted">Classes: ' + esc(sp.classes.join(', ').replace(/ \[5\.5e\]/g, '')) + '</p><p class="muted">' + esc(sp.src || '') + (sp.ed === '2024' ? ' · 2024' : ' · 2014') + '</p>';
   }
   function itemDetailHtml(it) {
@@ -1481,7 +1682,7 @@
     if (!b.options) b.options = { legacySpells: false };
     if (!b.ruleset) b.ruleset = D.rulesetOf(b);
     if (b.gear && b.gear.shield === true) b.gear.shield = 'shield';
-    var views = { sheet: renderSheet, spells: renderSpells, progression: renderProgression, gear: renderGear, companions: renderCompanions, library: renderLibrary };
+    var views = { play: renderPlay, sheet: renderSheet, spells: renderSpells, progression: renderProgression, gear: renderGear, companions: renderCompanions, library: renderLibrary };
     var html = (views[app.tab] || renderBuild)();
     if (ev.missing.length && app.tab !== 'library') {
       html = '<section class="card notice"><div class="card-body"><p><b>Part of this build isn\'t loaded.</b> Its ' + esc(ev.missing.join(' and ')) +
@@ -1493,6 +1694,7 @@
     window.scrollTo(0, y);
     if (app.modal) renderModal();
     if (app.print) renderPrint();
+    renderTray();
   }
 
   /* ---------- Events ---------- */
@@ -1571,6 +1773,11 @@
     if (t.dataset.iteminfo) { openDetail('item:' + t.dataset.iteminfo); return; }
     if (t.dataset.spellinfo) { openDetail('spell:' + t.dataset.spellinfo); return; }
     if (t.dataset.condinfo) { openDetail('cond:' + t.dataset.condinfo); return; }
+    if (t.dataset.roll) { doRoll(t.dataset.roll, t.dataset.rlabel); return; }
+    if (t.dataset.tray === 'toggle') { app.trayOpen = !app.trayOpen; renderTray(); return; }
+    if (t.dataset.tray === 'clear') { app.rolls = []; renderTray(); return; }
+    if (t.dataset.rollmode != null) { app.rollMode = t.dataset.rollmode; renderTray(); return; }
+    if (onPlayClick(t)) return;
     if (t.dataset.upgrade) { if (t.dataset.upgrade === 'open') openUpgrade(); else applyUpgrade(t.dataset.upgrade === 'copy'); return; }
     if (t.dataset.newchar) {
       var legacyOn = $('#nc-legacy') && $('#nc-legacy').checked;
@@ -1664,6 +1871,7 @@
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
     if (t.id === 'ps-full') { app.print.full = t.checked; renderPrint(); return; }
+    if (t.id === 'roll-crit') { app.rollCrit = t.checked; return; }
     if (t.id === 'nc-legacy') {
       $('#nc-warn').hidden = !t.checked;
       $('#nc-note').textContent = t.checked ? 'The character can use Legacy content. You can upgrade it to the 2024 rules later.' : 'The character uses the 2024 rules. Legacy content stays hidden, and this can\'t be changed later.';
@@ -1698,7 +1906,72 @@
     if (e.target.id === 'dlg-q' && app.modal) { app.modal.q = e.target.value; app.modal.limit = 150; renderModal(); }
     if (e.target.id === 'lib-q') { app.lib.q = e.target.value; $('#lib-results').innerHTML = libResults(); }
   }
+  // Play tab controls. Returns true when the click was handled.
+  function onPlayClick(t) {
+    var ds = t.dataset;
+    if (!(ds.pip || ds.cnt || ds.hp || ds.turn || ds.nextturn || ds.rest || ds.hd || ds.acb || ds.insp || ds.cast || ds.delcustom)) return false;
+    var b = cur(), d = ev.levels[b.level - 1].d, p = play();
+    if (ds.pip) {
+      var i = +ds.i, n = ds.pip === 'exh' ? p.exh || 0 : ds.pip.indexOf('death:') === 0 ? p.death[ds.pip.slice(6)] : used(ds.pip);
+      var next = i < n ? i : i + 1;
+      if (ds.pip === 'exh') p.exh = next;
+      else if (ds.pip.indexOf('death:') === 0) p.death[ds.pip.slice(6)] = next;
+      else if (next) p.used[ds.pip] = next; else delete p.used[ds.pip];
+    } else if (ds.cnt) {
+      p.used[ds.cnt] = Math.max(0, Math.min(+ds.max, used(ds.cnt) + +ds.delta));
+    } else if (ds.hp) {
+      var amt = parseInt(($('#hp-amt') || {}).value, 10);
+      if (!(amt > 0)) { var f = $('#hp-amt'); if (f) f.focus(); return true; }
+      var hp = curHp(d);
+      if (ds.hp === 'dmg') {
+        var absorbed = Math.min(p.temp || 0, amt);
+        p.temp = (p.temp || 0) - absorbed;
+        p.hp = Math.max(0, hp - (amt - absorbed));
+      } else if (ds.hp === 'heal') {
+        p.hp = Math.min(d.hp, hp + amt);
+        if (p.hp > 0) p.death = { s: 0, f: 0 };
+      } else p.temp = Math.max(p.temp || 0, amt);
+    } else if (ds.turn) {
+      p.turn = p.turn || {};
+      if (p.turn[ds.turn]) delete p.turn[ds.turn]; else p.turn[ds.turn] = true;
+    } else if (ds.nextturn) {
+      p.turn = {}; delete p.used['turn:attacks'];
+      (p.custom || []).forEach(function (c) { if (c.reset === 'turn') delete p.used['custom:' + c.id]; });
+      p.round = (p.round || 1) + 1;
+    } else if (ds.rest) {
+      rest(ds.rest);
+    } else if (ds.hd) {
+      var die = +ds.hd, r = doRoll('1d' + die + sign(d.mods.con), 'Hit Die');
+      p.used['hd:' + die] = used('hd:' + die) + 1;
+      p.hp = Math.min(d.hp, curHp(d) + Math.max(0, r.total));
+    } else if (ds.acb) {
+      p.acBonus = (p.acBonus || 0) + +ds.acb;
+    } else if (ds.insp) {
+      p.insp = !p.insp;
+    } else if (ds.cast) {
+      var sel = $('#cast-' + slug(ds.cast)), v = sel ? sel.value.split('|') : null, sp = D.SPELL_INFO[ds.cast];
+      if (!v || !sp) return true;
+      p.used[v[0]] = used(v[0]) + 1;
+      var info = D.spellDice(sp, b.level);
+      if (info) doRoll(D.spellDiceAt(info, sp.level, +v[1]).replace('MOD', ds.mod).replace('+-', '-'), sp.name + ' (level ' + v[1] + ')' + (info.type === 'healing' ? ' healing' : ''));
+    } else if (ds.delcustom) {
+      p.custom = (p.custom || []).filter(function (c) { return c.id !== ds.delcustom; });
+      delete p.used['custom:' + ds.delcustom];
+    }
+    commit();
+    return true;
+  }
+
   function onSubmit(e) {
+    if (e.target.id === 'custom-ctr-form') {
+      e.preventDefault();
+      var nm = $('#ctr-name').value.trim(), mx = Math.max(1, Math.min(99, parseInt($('#ctr-max').value, 10) || 1));
+      if (!nm) { $('#ctr-name').focus(); return; }
+      var pc = play();
+      pc.custom = (pc.custom || []).concat({ id: 'c' + Date.now().toString(36), name: nm, max: mx, reset: $('#ctr-reset').value });
+      commit(); return;
+    }
+    if (e.target.id === 'hp-form') { e.preventDefault(); return; }
     if (e.target.id === 'custom-item-form') {
       e.preventDefault();
       var v = $('#custom-item').value.trim();
@@ -1754,7 +2027,7 @@
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
   }
   var hashTab = (location.hash || '').replace('#', '');
-  if (['build', 'sheet', 'gear', 'spells', 'companions', 'library', 'progression'].indexOf(hashTab) >= 0) app.tab = hashTab;
+  if (['build', 'sheet', 'play', 'gear', 'spells', 'companions', 'library', 'progression'].indexOf(hashTab) >= 0) app.tab = hashTab;
   D.registerContent();
   $('#primary').innerHTML = '<section class="card"><div class="card-body"><p class="muted">Loading your saved compendium…</p></div></section>';
   // Wait briefly for an imported compendium so builds that use it render correctly.

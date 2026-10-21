@@ -439,6 +439,7 @@
       byDie[hd] = (byDie[hd] || 0) + 1;
     });
     d.hp = hp + s.hpPerLevel * L + s.hpFlat;
+    d.hitDiceBy = byDie;
     d.hitDice = Object.keys(byDie).sort(function (a, b) { return b - a; }).map(function (k) { return byDie[k] + 'd' + k; }).join(' + ');
 
     // Armor class.
