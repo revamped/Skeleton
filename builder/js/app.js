@@ -561,6 +561,7 @@
     if (!casters.length && !always.length) {
       return html + '<section class="card"><div class="card-body"><p>' + esc(ev.cls.name) + ' has no Spellcasting feature. Spells from your species, background, or feats appear here once you pick them (for example a Magic Initiate feat, or an Elf or Tiefling lineage).</p></div></section>';
     }
+    html += schoolLegend();
     casters.forEach(function (ce) {
       var rep = D.spellReport(b, ev, b.level, ce.clsId);
       var sp = rep.d, cid = esc(ce.clsId), CL = ce.classLevel;
@@ -624,8 +625,17 @@
     var name = key.replace(/:legacy$/, '').replace(/^cs-(2014|2024)-/, '').replace(/-/g, ' ');
     return name.replace(/\b\w/g, function (c) { return c.toUpperCase(); }) + (legacy ? ' (2014)' : '');
   }
+  function schoolIco(name) {
+    var k = D.schoolIcon(name), info = D.SPELL_INFO && D.SPELL_INFO[name];
+    return k ? '<span class="school-ico" title="' + esc(D.SCHOOL[info ? info.school : name] || '') + '">' + ico(k) + '</span>' : '';
+  }
   function spellLink(name) {
-    return D.SPELL_INFO && D.SPELL_INFO[name] ? '<button type="button" class="linklike" data-spellinfo="' + esc(name) + '">' + esc(name) + '</button>' : esc(name);
+    return schoolIco(name) + (D.SPELL_INFO && D.SPELL_INFO[name] ? '<button type="button" class="linklike" data-spellinfo="' + esc(name) + '">' + esc(name) + '</button>' : esc(name));
+  }
+  function schoolLegend() {
+    return '<div class="school-legend" aria-label="Spell schools">' + Object.keys(D.SCHOOL_ICONS).map(function (k) {
+      return '<span>' + ico(D.SCHOOL_ICONS[k]) + esc(D.SCHOOL[k]) + '</span>';
+    }).join('') + '</div>';
   }
   function countOk(list) { return list.filter(function (x) { return x.ok; }).length; }
   function groupByLevel(list) {
@@ -812,7 +822,7 @@
         var g = o.group !== lg ? '<div class="pick-group">' + esc(o.group) + '</div>' : '';
         lg = o.group;
         return g + '<label class="pick' + (tag ? ' unavail' : '') + '"><input type="checkbox" data-spelltoggle="' + esc(o.id) + '"' + (on ? ' checked' : '') + '>' +
-          '<span>' + esc(o.label) + (tag ? ' <span class="pill pill-plain">' + esc(tag) + '</span>' : '') + (alw ? ' <span class="pill pill-gold">' + alw + '</span>' : '') + '</span>' +
+          '<span>' + schoolIco(o.id) + esc(o.label) + (tag ? ' <span class="pill pill-plain">' + esc(tag) + '</span>' : '') + (alw ? ' <span class="pill pill-gold">' + alw + '</span>' : '') + '</span>' +
           (D.SPELL_INFO[o.id] ? '<span class="pick-desc">' + esc(spellMeta(D.SPELL_INFO[o.id])) + ' — ' + esc(snip(D.SPELL_INFO[o.id].text, 180)) + '</span>' : '') + '</label>';
       }).join('') || '<p class="muted" style="padding:12px">No matches.</p>';
       html = modalShell((m.kind === 'cantrips' ? 'Cantrips' : 'Prepared spells') + ' at ' + sp.className + ' level ' + sp.classLevel,
@@ -1240,7 +1250,7 @@
     var hits = libMatches(), shown = hits.slice(0, 200);
     return '<p class="muted">' + hits.length.toLocaleString() + ' result' + (hits.length === 1 ? '' : 's') + (hits.length > 200 ? ' · showing the first 200' : '') + '</p>' +
       '<div class="lib-list">' + shown.map(function (e) {
-        var ic = app.lib.cat === 'items' ? D.itemIcon(e.obj) : app.lib.cat === 'species' ? D.speciesIcon(speciesBase(e.obj.name)) : app.lib.cat === 'backgrounds' ? D.backgroundIcon(e.obj.name) : app.lib.cat === 'classes' ? D.classIcon(e.obj) : app.lib.cat === 'creatures' ? D.creatureIcon(e.obj) : '';
+        var ic = app.lib.cat === 'items' ? D.itemIcon(e.obj) : app.lib.cat === 'species' ? D.speciesIcon(speciesBase(e.obj.name)) : app.lib.cat === 'backgrounds' ? D.backgroundIcon(e.obj.name) : app.lib.cat === 'classes' ? D.classIcon(e.obj) : app.lib.cat === 'creatures' ? D.creatureIcon(e.obj) : app.lib.cat === 'spells' ? D.schoolIcon(e.obj.school) : '';
         return '<button type="button" class="lib-row" data-libopen="' + esc(e.id) + '"><b>' + (ic ? ico(ic) + ' ' : '') + esc(e.label) + '</b><span class="muted">' + esc(e.meta) + '</span><span class="lib-src">' + esc(e.src || '') + '</span></button>';
       }).join('') + '</div>';
   }
@@ -1268,7 +1278,8 @@
   /* ---------- Detail views ---------- */
 
   function spellDetailHtml(sp) {
-    return '<p class="muted">' + esc(spellMeta(sp)) + '</p><p><b>Components</b> ' + esc(sp.comp || '—') + '</p>' + fmt(sp.text) +
+    var k = D.schoolIcon(sp.school);
+    return '<p class="muted">' + (k ? ico(k, 'ico-title') : '') + esc(spellMeta(sp)) + '</p><p><b>Components</b> ' + esc(sp.comp || '—') + '</p>' + fmt(sp.text) +
       '<p class="muted">Classes: ' + esc(sp.classes.join(', ').replace(/ \[5\.5e\]/g, '')) + '</p><p class="muted">' + esc(sp.src || '') + (sp.ed === '2024' ? ' · 2024' : ' · 2014') + '</p>';
   }
   function itemDetailHtml(it) {
