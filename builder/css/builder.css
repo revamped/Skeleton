@@ -511,3 +511,6 @@ body.printing { overflow: hidden; }
 .cond:hover { border-color: var(--accent); }
 .cond .ico { color: var(--accent); flex: none; }
 .cond .pill { margin-left: auto; font-size: 0.7rem; }
+
+/* Skill icons */
+.skill-ico { width: 1.05em; height: 1.05em; margin-right: 6px; vertical-align: -0.17em; color: var(--accent); }
