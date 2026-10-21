@@ -477,7 +477,7 @@
 
     var abilities = '<section class="card"><div class="card-head"><h3>Abilities &amp; saves</h3></div><div class="card-body"><div class="rows">' +
       D.ABILITIES.map(function (a) {
-        return '<div class="row"><span><span class="prof-dot' + (d.saves[a].prof ? ' p1' : '') + '"></span>' + D.ABILITY_NAMES[a] + ' <span class="muted num">' + s.abilities[a] + ' (' + sign(d.mods[a]) + ')</span></span><span class="v">save ' + sign(d.saves[a].total) + '</span></div>';
+        return '<div class="row"><span><span class="prof-dot' + (d.saves[a].prof ? ' p1' : '') + '"></span>' + ico(D.abilityIcon(a), 'skill-ico') + D.ABILITY_NAMES[a] + ' <span class="muted num">' + s.abilities[a] + ' (' + sign(d.mods[a]) + ')</span></span><span class="v">save ' + sign(d.saves[a].total) + '</span></div>';
       }).join('') + '</div>' + (s.flags.auraOfProtection ? '<p class="desc">Saves include Aura of Protection (' + sign(Math.max(1, d.mods.cha)) + ').</p>' : '') + '</div></section>';
 
     var skills = '<section class="card"><div class="card-head"><h3>Skills</h3><span class="muted">● proficient · ◉ expertise</span></div><div class="card-body"><div class="rows">' +

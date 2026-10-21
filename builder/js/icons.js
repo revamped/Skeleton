@@ -148,6 +148,13 @@
     skStealth: '<path d="M5 14.5c-.5-3 .3-6.5 2.3-6.5S10 10.5 9.5 13.5l-.4 2H5.3z"/><path d="M5.5 18a1.8 1.8 0 0 0 3.5 0"/><path d="M19 9.5c.5-3-.3-6.5-2.3-6.5S14 5.5 14.5 8.5l.4 2h3.8z"/><path d="M18.5 13a1.8 1.8 0 0 1-3.5 0"/>',
     skSurvival: '<path d="M12 3c2 3 4 4.5 4 7.5a4 4 0 0 1-8 0C8 8 10 6 12 3z"/><path d="m4 21 16-4.5M4 16.5 20 21"/>',
 
+    /* Ability scores */
+    abStr: '<path d="M3 19h11.5a5.5 5.5 0 0 0 5.5-5.5c0-2.8-2.2-4.5-4.5-4.5-1.7 0-2.8.7-3.8 1.7L10.5 8l1.5-4H8.5L5.5 9 3 13.5z"/><path d="M10 14.5c1.2-1.5 3.3-2 5.5-1.3"/>',
+    abCon: '<path d="M12 20s-7.5-4.5-7.5-10A4 4 0 0 1 12 7.5 4 4 0 0 1 19.5 10C19.5 15.5 12 20 12 20z"/><path d="M6 12h3l1.5-2.5 2 5 1.5-2.5h4"/>',
+    abInt: '<path d="M12 5a3 3 0 0 0-5.5-1.5A3 3 0 0 0 4 8a3 3 0 0 0 .5 5A3.5 3.5 0 0 0 8 19a3 3 0 0 0 4 1.5z"/><path d="M12 5a3 3 0 0 1 5.5-1.5A3 3 0 0 1 20 8a3 3 0 0 1-.5 5A3.5 3.5 0 0 1 16 19a3 3 0 0 1-4 1.5z"/><path d="M12 5v15.5M8 10h1.5M14.5 14H16"/>',
+    abWis: '<path d="M5 4l3 3h8l3-3v10a7 7 0 0 1-14 0z"/><circle cx="9" cy="11" r="2"/><circle cx="15" cy="11" r="2"/><path d="m11 15 1 1.5 1-1.5"/>',
+    abCha: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',
@@ -253,6 +260,10 @@
     return DAMAGE_TYPES.indexOf(t) >= 0 ? 'dmg' + t.charAt(0).toUpperCase() + t.slice(1) : null;
   };
   DND.DAMAGE_TYPES = DAMAGE_TYPES;
+
+  var ABILITY_ICONS = { str: 'abStr', dex: 'feather', con: 'abCon', int: 'abInt', wis: 'abWis', cha: 'abCha' };
+  // Icon for an ability key ("str" ... "cha"), or null.
+  DND.abilityIcon = function (key) { return ABILITY_ICONS[key] || null; };
 
   var SKILL_ICONS = { acrobatics: 'skAcrobatics', animal: 'paw', arcana: 'skArcana', athletics: 'skAthletics', deception: 'mask', history: 'skHistory', insight: 'skInsight',
     intimidation: 'skIntimidation', investigation: 'skInvestigation', medicine: 'skMedicine', nature: 'skNature', perception: 'skPerception', performance: 'music',
