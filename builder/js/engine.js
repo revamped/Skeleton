@@ -26,10 +26,150 @@
       gear: { armor: 'chainmail', shield: true, weapons: ['longsword', 'javelin'] },
       inventory: [],
       companions: [],
-      options: { legacySpells: false }
+      options: { legacySpells: false },
+      ruleset: '2024'
     };
     for (var k in preset || {}) b[k] = preset[k];
     return b;
+  };
+
+  /* ---------- Rulesets ---------- */
+
+  // A character uses either the 2024 rules or Legacy rules (2024 plus 2014 content).
+  // Legacy content: compendium entries from 2014 sources; their ids end in -2014.
+  DND.isLegacy = function (x) { return !!x && (x.ed === '2014' || x.cat === 'legacy' || /-2014$/.test(x.id || '')); };
+  DND.allowedIn = function (x, ruleset) { return ruleset === 'legacy' || !DND.isLegacy(x); };
+  function legacyId(v) { return typeof v === 'string' && /-2014$/.test(v); }
+  // Builds saved before rulesets existed count as Legacy if they already use 2014 content.
+  DND.rulesetOf = function (build) {
+    if (build.ruleset) return build.ruleset;
+    var ids = [build.classId, build.speciesId, build.backgroundId].concat(build.plan || []);
+    Object.keys(build.choices || {}).forEach(function (k) { ids = ids.concat(build.choices[k]); });
+    return ids.some(legacyId) || (build.options && build.options.legacySpells) ? 'legacy' : '2024';
+  };
+  DND.RULESET = '2024';
+
+  function bareName(n) { return String(n || '').replace(/\s*\((2014|2024|legacy)\)\s*$/i, '').replace(/\s*\[5\.5e\]/i, '').trim().toLowerCase(); }
+  var BASE_NAME = {
+    'class': function (n) { return bareName(n.split(' (')[0]); },
+    species: function (n) { return bareName(n.split(/,| \(| of /)[0]); },
+    background: function (n) { return bareName(n.replace(/^Baldur's Gate /, '').split(/ \(|, /)[0]); },
+    feat: bareName
+  };
+  // Subclasses renamed in 2024 (Way of Shadow → Warrior of Shadow, School of Evocation → Evoker).
+  var SUB_ALIAS = { abjuration: 'abjurer', conjuration: 'conjurer', divination: 'diviner', enchantment: 'enchanter', evocation: 'evoker', illusion: 'illusionist',
+    necromancy: 'necromancer', transmutation: 'transmuter', 'four elements': 'elements', 'totem warrior': 'wild heart' };
+  function subKey(n) {
+    var k = bareName(n).replace(/^(the |way of (the )?|warrior of (the )?|school of |path of (the )?)/, '').replace(/ (patron|sorcery|bloodline|mind|soul)$/, '');
+    return SUB_ALIAS[k] || k;
+  }
+  // The 2024 counterpart of a legacy entry: same name without the edition tag, else same base name.
+  // Built-in (SRD) entries win over compendium ones.
+  function modernMatch(list, x, kind) {
+    var pool = list.filter(function (y) { return !DND.isLegacy(y); });
+    function pick(test) { return pool.filter(function (y) { return !y.compendium && test(y); })[0] || pool.filter(test)[0] || null; }
+    var n = bareName(x.name), base = BASE_NAME[kind](x.name);
+    return pick(function (y) { return bareName(y.name) === n; }) || pick(function (y) { return bareName(y.name) === base; });
+  }
+
+  // Plan an upgrade of a Legacy character to the 2024 rules. Returns the upgraded copy,
+  // what changed, and the picks that have no 2024 version (the player chooses those again).
+  DND.planUpgrade = function (build) {
+    var nb = clone(build), idMap = {}, changes = [], unresolved = [], extraChoices = {};
+    function note(kind, from, to) { if (to) changes.push({ kind: kind, from: from.name, to: to.name }); else unresolved.push({ kind: kind, name: from.name }); }
+
+    // Classes (main class and multiclass levels) and their subclasses.
+    var clsIds = [build.classId].concat(build.plan || []).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+    clsIds.forEach(function (id) {
+      var old = DND.cls(id);
+      if (!old || !DND.isLegacy(old)) return;
+      var to = modernMatch(DND.CLASSES, old, 'class');
+      note('Class', old, to);
+      if (!to) return;
+      idMap[old.id] = to.id;
+      var subVal = build.choices[old.id + '.subclass'];
+      (old.subclasses || []).forEach(function (sc) {
+        var m = to.subclasses.filter(function (y) { return bareName(y.name) === bareName(sc.name); })[0] ||
+          to.subclasses.filter(function (y) { return subKey(y.name) === subKey(sc.name); })[0];
+        if (m) idMap[sc.id] = m.id;
+        if (sc.id === subVal) note('Subclass', sc, m);
+      });
+    });
+
+    // Species, including a 2014 subrace becoming a 2024 lineage (High Elf → Elf, High Elf lineage).
+    var sp = find(DND.SPECIES, build.speciesId);
+    if (sp && DND.isLegacy(sp)) {
+      var toSp = modernMatch(DND.SPECIES, sp, 'species');
+      if (toSp) {
+        idMap[sp.id] = toSp.id;
+        var lin = (toSp.choices || []).filter(function (c) { return /^(lineage|legacy|ancestry)$/.test(c.id) && Array.isArray(c.options); })[0];
+        var rest = bareName(sp.name).replace(BASE_NAME.species(sp.name), '').replace(/^[,\s]+/, '').split(/[\s()]+/)[0];
+        var opt = lin && rest && lin.options.filter(function (o) { return o.label.toLowerCase().indexOf(rest) >= 0; })[0];
+        if (opt) extraChoices['sp.' + toSp.id + '.' + lin.id] = opt.id;
+        changes.push({ kind: 'Species', from: sp.name, to: toSp.name + (opt ? ' (' + opt.label + ')' : '') });
+      } else note('Species', sp, null);
+    }
+
+    var bg = find(DND.BACKGROUNDS, build.backgroundId);
+    if (bg && DND.isLegacy(bg)) {
+      var toBg = modernMatch(DND.BACKGROUNDS.filter(function (y) { return !y.custom; }), bg, 'background');
+      note('Background', bg, toBg);
+      if (toBg) idMap[bg.id] = toBg.id;
+    }
+
+    // Feats picked anywhere in the build.
+    var seen = {};
+    Object.keys(build.choices).forEach(function (k) {
+      [].concat(build.choices[k]).forEach(function (v) {
+        var f = typeof v === 'string' && !seen[v] && DND.feat(v);
+        if (!f || !DND.isLegacy(f)) return;
+        seen[v] = true;
+        var to = modernMatch(DND.FEATS, f, 'feat');
+        note('Feat', f, to);
+        if (to) idMap[f.id] = to.id;
+      });
+    });
+
+    function mapId(v) { return typeof v === 'string' && idMap[v] ? idMap[v] : v; }
+    nb.classId = mapId(nb.classId);
+    nb.speciesId = mapId(nb.speciesId);
+    nb.backgroundId = mapId(nb.backgroundId);
+    if (nb.plan) nb.plan = nb.plan.map(mapId);
+    var choices = {};
+    Object.keys(build.choices).forEach(function (k) {
+      var v = build.choices[k];
+      choices[k.split('.').map(mapId).join('.')] = Array.isArray(v) ? v.map(mapId) : mapId(v);
+    });
+    Object.keys(extraChoices).forEach(function (k) { choices[k] = extraChoices[k]; });
+    nb.choices = choices;
+    if (nb.spellPlan) {
+      var sp2 = {};
+      Object.keys(nb.spellPlan).forEach(function (k) { sp2[mapId(k)] = nb.spellPlan[k]; });
+      nb.spellPlan = sp2;
+    }
+    nb.options = Object.assign({}, nb.options, { legacySpells: false });
+    nb.ruleset = '2024';
+
+    // Clear choices whose options don't exist in the 2024 versions; features then re-evaluate.
+    var cleared = 0;
+    for (var pass = 0; pass < 4; pass++) {
+      var res = DND.evaluate(nb), changed = false;
+      var walk = function (list) {
+        list.forEach(function (rec) {
+          var vals = asArray(rec.value);
+          var keep = vals.filter(function (v) { return find(rec.options, v); });
+          if (keep.length !== vals.length) {
+            cleared += vals.length - keep.length; changed = true;
+            if (keep.length) nb.choices[rec.key] = rec.kind === 'many' ? keep : keep[0]; else delete nb.choices[rec.key];
+          }
+          walk(rec.children);
+        });
+      };
+      res.origin.forEach(function (o) { walk(o.choices); });
+      res.levels.forEach(function (l) { l.features.forEach(function (f) { walk(f.choices); }); });
+      if (!changed) break;
+    }
+    return { build: nb, changes: changes, unresolved: unresolved, cleared: cleared };
   };
 
   function freshState(build, species) {
@@ -370,7 +510,7 @@
       var lists = [c.list];
       if (s.spells.extraLists && (!s.spells.extraListsFor || s.spells.extraListsFor === tk.cls.id)) lists = lists.concat(s.spells.extraLists);
       if (tk.sub && tk.sub.extraList) lists.push(tk.sub.extraList);
-      if (build.options && build.options.legacySpells && DND.SPELL_LISTS[c.list + ':legacy']) lists.push(c.list + ':legacy');
+      if (DND.RULESET === 'legacy' && build.options && build.options.legacySpells && DND.SPELL_LISTS[c.list + ':legacy']) lists.push(c.list + ':legacy');
       entries.push({
         clsId: tk.cls.id, className: tk.cls.name, classLevel: cl, caster: c,
         ability: c.ability, dc: 8 + pb + m + fx.spellDc, attack: pb + m + fx.spellAtk, type: c.type,
@@ -447,8 +587,14 @@
     if (!species) { missing.push('species'); species = DND.SPECIES[0]; }
     var bg = find(DND.BACKGROUNDS, build.backgroundId);
     if (!bg) { missing.push('background'); bg = DND.BACKGROUNDS[0]; }
+    var ruleset = DND.RULESET = DND.rulesetOf(build);
     var s = freshState(build, species);
-    var result = { cls: cls, species: species, background: bg, origin: [], levels: [], abilityIssues: [], missing: missing };
+    var result = { cls: cls, species: species, background: bg, origin: [], levels: [], abilityIssues: [], missing: missing, ruleset: ruleset };
+    if (ruleset !== 'legacy') {
+      [cls, species, bg].concat((build.plan || []).map(DND.cls)).filter(function (x, i, a) { return x && DND.isLegacy(x) && a.indexOf(x) === i; }).forEach(function (x) {
+        s.warnings.push(x.name + ' is legacy (2014) content, and this character uses the 2024 rules. Choose a 2024 option.');
+      });
+    }
 
     // Ability score generation check.
     var base = build.base, vals = DND.ABILITIES.map(function (a) { return base[a]; });

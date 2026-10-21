@@ -30,7 +30,7 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
   - **Copy as text** gives a compact plain-text version for notes or VTTs
   - the Claude artifact viewer blocks printing; use the GitHub Pages copy or open `index.html` locally
 - **Gear tab**: armor, shield and weapons (including magic weapons and armor with their bonuses) plus an inventory. Equipped (and attuned) items apply their effects: AC, saving throws, spell attack/DC, speed, initiative, and items that set an ability score. Weight, carrying capacity and the three-item attunement limit are tracked.
-- **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Optionally include 2014 spells from an imported compendium.
+- **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Legacy characters can also include 2014 spells from an imported compendium.
   - **Per-level learning and swapping:** edits apply at the class level you're viewing and carry forward until a later level changes them.
   - **Change tracking:** each level shows what was learned (+) and swapped out (−), on the Spells tab, in a per-class spell history and on the level cards.
   - **Swap rules:** Bard, Sorcerer, Warlock and imported spells-known casters can replace one spell per level. Every caster can replace one cantrip per level. Extra swaps are flagged.
@@ -39,6 +39,7 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
 - **All 20 levels**: one table with PB, HP, AC, ability scores, features and your choices, the class table columns and spell slots for every level.
 - **Library**: search and filter spells, items, creatures, feats, species, backgrounds and classes, and open any entry in full.
 - Multiple saved builds, Duplicate (to compare variants), and Export/Import as JSON text.
+- **Rulesets**: each character uses either the **2024 rules** or **Legacy content**, chosen when it's created (New). Legacy characters can also pick 2014 classes, species, backgrounds, feats and spells from an imported compendium. The choice is locked: a 2024 character can't switch to Legacy. A Legacy character can be upgraded to the 2024 rules from the Build tab. The upgrade swaps each 2014 pick for its 2024 version (including renamed subclasses such as Way of Shadow → Warrior of Shadow), rebuilds every level, clears choices that no longer exist and lists anything to choose again. It can upgrade the character in place or a copy. Builds saved before rulesets existed count as Legacy if they use 2014 content.
 
 ## Content
 
