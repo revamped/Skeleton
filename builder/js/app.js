@@ -8,7 +8,8 @@
 
   var app = { builds: [], currentId: null, tab: 'build', showAll: true, modal: null, deleteArmed: false,
     lib: { cat: 'spells', q: '', f1: '', f2: '' }, importing: '', clearArmed: false, ready: false,
-    rolls: [], rollMode: '', rollCrit: false, trayOpen: false };
+    rolls: [], rollMode: '', rollCrit: false, trayOpen: false,
+    gh: { url: '', listing: null, busy: false, msg: '' } };
   var ev = null;
 
   /* ---------- Helpers ---------- */
@@ -231,6 +232,7 @@
     var rs = ev ? ev.ruleset : '2024';
     return (kind === 'background' ? D.BACKGROUNDS : kind === 'class' ? D.CLASSES : D.SPECIES).filter(function (x) { return D.allowedIn(x, rs); });
   }
+  function allowedSubs(cls) { return (cls.subclasses || []).filter(function (sc) { return D.allowedIn(sc, ev ? ev.ruleset : '2024'); }); }
   function speciesGroups(kind) {
     kind = kind || 'species';
     var groups = {}, order = [];
@@ -259,7 +261,8 @@
     if (!cls.subclasses || !cls.subclasses.length) return '';
     var key = cls.id + '.subclass', val = b.choices[key];
     var groups = [['Built in (2024 SRD)', []], ['From your compendium', []]];
-    cls.subclasses.forEach(function (sc) { groups[sc.compendium ? 1 : 0][1].push(sc); });
+    var subs = cls.subclasses.filter(function (sc) { return D.allowedIn(sc, ev.ruleset) || sc.id === val; });
+    subs.forEach(function (sc) { groups[sc.compendium ? 1 : 0][1].push(sc); });
     groups = groups.filter(function (g) { return g[1].length; });
     var needs = !val;
     return '<div class="subfield' + (needs ? ' todo' : '') + '"><label for="f-subclass">' + esc(cls.subclassLabel || 'Subclass') + ' · level ' + (cls.subclassLevel || 3) +
@@ -267,7 +270,7 @@
       groups.map(function (g) {
         var inner = g[1].map(function (sc) { return '<option value="' + esc(sc.id) + '"' + (sc.id === val ? ' selected' : '') + '>' + esc(sc.name) + '</option>'; }).join('');
         return groups.length > 1 ? '<optgroup label="' + esc(g[0]) + '">' + inner + '</optgroup>' : inner;
-      }).join('') + '</select><span class="muted sub-count">' + cls.subclasses.length + ' subclass' + (cls.subclasses.length === 1 ? '' : 'es') + ' for ' + esc(cls.name) + '</span></div>';
+      }).join('') + '</select><span class="muted sub-count">' + subs.length + ' subclass' + (subs.length === 1 ? '' : 'es') + ' for ' + esc(cls.name) + '</span></div>';
   }
   function backgroundSubField() { return versionField('background', ev.background, cur().backgroundId, 'f-subbg'); }
   function classVersionField() { return versionField('class', ev.cls, cur().classId, 'f-classver'); }
@@ -429,7 +432,7 @@
       (n.missing ? '<span class="pill pill-todo">' + n.missing + ' to choose</span>' : '<span class="pill pill-ok">complete</span>') +
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
-      pickerField('f-class', 'Class', 'class', pool('class'), b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; },
+      pickerField('f-class', 'Class', 'class', pool('class'), b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + allowedSubs(c).length + ' subclasses'; },
         { title: classBase(ev.cls.name), icon: D.classIcon(ev.cls), count: speciesGroups('class').order.length, after: classVersionField() + classSubField() }) +
       pickerField('f-species', 'Species', 'species', pool('species'), b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
         { title: speciesBase(ev.species.name), icon: D.speciesIcon(speciesBase(ev.species.name)), count: speciesGroups().order.length, after: subspeciesField() }) +
@@ -1422,7 +1425,7 @@
         g.list.forEach(function (x) {
           var sr = x.src || 'SRD 5.2'; if (srcs.indexOf(sr) < 0) srcs.push(sr);
           var r = rulesGroup(x); if (rules.indexOf(r) < 0) rules.push(r);
-          subs += x.subclasses.length;
+          subs += allowedSubs(x).length;
         });
         var first = g.list[0];
         var variants = g.list.map(function (x) { return x.compendium ? variantLabel(x, 'class').replace(/^Standard \((.*)\)$/, '$1') : '2024'; });
@@ -1478,7 +1481,7 @@
     if (kind === 'class' || kind === 'species' || kind === 'background') {
       var list = pool(kind);
       opts = list.map(function (x) {
-        var meta = kind === 'class' ? 'd' + x.hd + ' · ' + x.subclasses.length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
+        var meta = kind === 'class' ? 'd' + x.hd + ' · ' + allowedSubs(x).length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
           kind === 'species' ? (x.size || '') + ' · Speed ' + x.speed + (x.darkvision ? ' · Darkvision ' + x.darkvision : '') :
           x.custom ? 'any abilities' : x.legacy ? '2014 background' : 'Feat: ' + (x.featName || '');
         return { id: x.id, label: x.name, group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2, meta: meta + (x.src ? ' · ' + x.src : ''),
@@ -1597,7 +1600,64 @@
       '<p class="desc">Import Fight Club 5 / Game Master 5 compendium files (.xml, or a .zip of them), such as the collections built from the FightClub5eXML project. Files are read in this browser and stored only here; nothing is uploaded. Imported content adds classes, subclasses, species, backgrounds, feats, spells, items and creatures to the builder.</p>' +
       loaded + status +
       '<div class="chips"><label class="btn btn-primary file-btn" for="import-file">' + (info ? 'Import again (replaces)' : 'Import compendium files') + '</label><input id="import-file" type="file" accept=".xml,.zip,text/xml,application/zip" multiple hidden>' +
-      (info ? '<button type="button" class="btn' + (app.clearArmed ? ' btn-danger armed' : '') + '" data-clearcomp="1">' + (app.clearArmed ? 'Confirm: remove compendium' : 'Remove compendium') + '</button>' : '') + '</div></div></section>';
+      (info ? '<button type="button" class="btn' + (app.clearArmed ? ' btn-danger armed' : '') + '" data-clearcomp="1">' + (app.clearArmed ? 'Confirm: remove compendium' : 'Remove compendium') + '</button>' : '') + '</div>' +
+      githubPanel(info) + '</div></section>';
+  }
+  // Import from a GitHub repository, folder or file link.
+  function githubPanel(info) {
+    var gh = app.gh, L = gh.listing, from = info && info.github;
+    var opts = '';
+    if (L && !L.direct) {
+      var groups = [['Collections', L.collections.map(function (p) { return [p, p.split('/').pop().replace(/\.xml$/i, '').replace(/_/g, ' ')]; })]];
+      if (L.files) {
+        groups.push(['Single books and folders', L.files.filter(function (p) { return /(^|\/)(collection|source)-[^/]*\.xml$/i.test(p) && L.collections.indexOf(p) < 0; })
+          .map(function (p) { return [p, p.replace(/\.xml$/i, '').replace(/\/(collection|source)-[^/]*$/i, '').replace(/^Sources\//, '').replace(/_/g, ' ')]; })]);
+        groups.push(['Everything', [['__all__', 'Every .xml file' + (L.src.path ? ' in ' + L.src.path : '') + ' (' + L.files.length + ')']]]);
+      }
+      var pick = from && from.target;
+      opts = '<div class="field"><label for="gh-col">What to import from ' + esc(L.src.owner + '/' + L.src.repo) + '</label><select id="gh-col">' + groups.filter(function (g) { return g[1].length; }).map(function (g) {
+        return '<optgroup label="' + esc(g[0]) + '">' + g[1].map(function (c) {
+          return '<option value="' + esc(c[0]) + '"' + (c[0] === pick || (!pick && /Core_Rulebooks_5\.5e/.test(c[0])) ? ' selected' : '') + '>' + esc(c[1]) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('') + '</select>' + (L.offline ? '<p class="desc">GitHub\'s file list isn\'t available right now (' + esc(L.offline) + '), so these are FightClub5eXML\'s usual collections.</p>' : '') +
+        '<p class="desc">Collections pull in every book they list; the Complete Compendium is over a thousand files and takes a few minutes.</p></div>' +
+        '<div class="chips"><button type="button" class="btn btn-primary" data-ghimport="1"' + (gh.busy ? ' disabled' : '') + '>Import from GitHub</button></div>';
+    }
+    return '<div class="gh-import"><h4>Or import from GitHub</h4>' +
+      '<form class="add-custom" id="gh-form"><label class="sr" for="gh-url">GitHub link</label><input id="gh-url" type="text" inputmode="url" autocomplete="off" spellcheck="false" value="' + esc(gh.url || (from && from.url) || D.GITHUB_DEFAULT) + '" placeholder="https://github.com/owner/repository">' +
+      '<button type="submit" class="btn"' + (gh.busy ? ' disabled' : '') + '>' + (gh.busy && !L ? 'Looking…' : 'Find files') + '</button></form>' +
+      '<p class="desc">Paste a repository, a folder (…/tree/branch/path) or a single .xml file. Files download from GitHub straight into this browser.</p>' +
+      (gh.msg ? '<p class="desc gh-msg" role="alert">' + gh.msg + '</p>' : '') + opts +
+      (from && !L ? '<p class="desc">Loaded from <b>' + esc(from.owner + '/' + from.repo) + '</b> · ' + esc(from.label || from.target) + '. <button type="button" class="linklike" data-ghupdate="1">Update from GitHub</button> to get the latest files.</p>' : '') +
+      '</div>';
+  }
+  function githubError(err) {
+    var m = err && err.message || String(err);
+    if (/Failed to fetch|NetworkError|Load failed|blocked/i.test(m)) {
+      return 'Couldn\'t reach GitHub from this page.' + (inFrame ? ' The Claude viewer blocks downloads; <a href="' + PAGES_URL + '#library" target="_blank" rel="noopener">open the GitHub Pages copy</a> to import from GitHub.' : ' Check your connection and try again.');
+    }
+    return esc(m);
+  }
+  function githubFind(url) {
+    app.gh = { url: url, listing: null, busy: true, msg: '' }; render();
+    D.githubListing(url).then(function (L) {
+      app.gh.busy = false;
+      if (L.direct) { githubImport(L.src, [L.src.path], L.src.path); return; }
+      app.gh.listing = L; render();
+    }, function (err) { app.gh.busy = false; app.gh.msg = githubError(err); render(); });
+  }
+  function githubImport(src, start, target) {
+    var label = target === '__all__' ? 'every .xml file' + (src.path ? ' in ' + src.path : '') : target.split('/').pop().replace(/\.xml$/i, '').replace(/_/g, ' ');
+    app.gh.busy = true; app.gh.msg = ''; app.importing = 'Connecting to GitHub…'; render();
+    var progress = function (msg) { app.importing = msg; var el = document.querySelector('.card .pill-gold[aria-live]'); if (el) el.textContent = msg; };
+    D.githubFetch(src, start, progress).then(function (res) {
+      return D.finishImport(res, progress, { github: { url: app.gh.url || D.GITHUB_DEFAULT, owner: src.owner, repo: src.repo, ref: src.ref, path: src.path, target: target, start: start, label: label, failed: res.failed.length } });
+    }).then(function () {
+      app.importing = ''; app.gh = { url: '', listing: null, busy: false, msg: '' };
+      D.registerContent(); render();
+    }, function (err) {
+      app.importing = ''; app.gh.busy = false; app.gh.msg = githubError(err); render();
+    });
   }
   function renderLibrary() {
     var L = app.lib;
@@ -1800,6 +1860,15 @@
     if (t.dataset.iteminfo) { openDetail('item:' + t.dataset.iteminfo); return; }
     if (t.dataset.spellinfo) { openDetail('spell:' + t.dataset.spellinfo); return; }
     if (t.dataset.condinfo) { openDetail('cond:' + t.dataset.condinfo); return; }
+    if (t.dataset.ghimport && app.gh.listing) {
+      var L = app.gh.listing, target = $('#gh-col').value;
+      githubImport(L.src, target === '__all__' ? L.files : [target], target); return;
+    }
+    if (t.dataset.ghupdate) {
+      var g = D.CONTENT.userInfo.github;
+      app.gh.url = g.url;
+      githubImport({ owner: g.owner, repo: g.repo, ref: g.ref, path: g.path }, g.start, g.target); return;
+    }
     if (t.dataset.roll) { doRoll(t.dataset.roll, t.dataset.rlabel); return; }
     if (t.dataset.tray === 'toggle') { app.trayOpen = !app.trayOpen; renderTray(); return; }
     if (t.dataset.tray === 'clear') { app.rolls = []; renderTray(); return; }
@@ -2002,6 +2071,7 @@
       commit(); return;
     }
     if (e.target.id === 'hp-form') { e.preventDefault(); return; }
+    if (e.target.id === 'gh-form') { e.preventDefault(); githubFind($('#gh-url').value); return; }
     if (e.target.id === 'custom-item-form') {
       e.preventDefault();
       var v = $('#custom-item').value.trim();

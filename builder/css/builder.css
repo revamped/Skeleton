@@ -610,3 +610,10 @@ body.printing { overflow: hidden; }
 .sum-conds { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px 0; }
 .cond-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid var(--bad); border-radius: 999px; background: var(--bad-soft); color: var(--bad); font: inherit; font-size: .82rem; cursor: pointer; }
 .cond-chip .ico { width: 14px; height: 14px; }
+
+/* Library: import from GitHub */
+.gh-import { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); display: grid; gap: 8px; }
+.gh-import h4 { margin: 0; }
+.gh-import .desc { margin: 0; }
+.gh-msg { color: var(--bad); }
+.gh-import select { max-width: 100%; }

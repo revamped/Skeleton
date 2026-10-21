@@ -49,7 +49,7 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
 - **All 20 levels**: one table with PB, HP, AC, ability scores, features and your choices, the class table columns and spell slots for every level.
 - **Library**: search and filter spells, items, creatures, feats, species, backgrounds and classes, and open any entry in full.
 - Multiple saved builds, Duplicate (to compare variants), and Export/Import as JSON text.
-- **Rulesets**: each character uses either the **2024 rules** or **Legacy content**, chosen when it's created (New). Legacy characters can also pick 2014 classes, species, backgrounds, feats and spells from an imported compendium. The choice is locked: a 2024 character can't switch to Legacy. A Legacy character can be upgraded to the 2024 rules from the Build tab. The upgrade swaps each 2014 pick for its 2024 version (including renamed subclasses such as Way of Shadow → Warrior of Shadow), rebuilds every level, clears choices that no longer exist and lists anything to choose again. It can upgrade the character in place or a copy. Builds saved before rulesets existed count as Legacy if they use 2014 content.
+- **Rulesets**: each character uses either the **2024 rules** or **Legacy content**, chosen when it's created (New). Legacy characters can also pick 2014 classes, species, backgrounds, feats and spells from an imported compendium, plus 2014 subclasses republished for 2024 classes (named "(Legacy)", as in FightClub5eXML's Legacy_5e set). The choice is locked: a 2024 character can't switch to Legacy. A Legacy character can be upgraded to the 2024 rules from the Build tab. The upgrade swaps each 2014 pick for its 2024 version (including renamed subclasses such as Way of Shadow → Warrior of Shadow), rebuilds every level, clears choices that no longer exist and lists anything to choose again. It can upgrade the character in place or a copy. Builds saved before rulesets existed count as Legacy if they use 2014 content.
 
 ## Content
 
@@ -61,6 +61,13 @@ Built in (SRD 5.2, the CC-BY part of the 2024 rules):
 ### Importing more content
 
 Library → **Import compendium files** accepts Fight Club 5 / Game Master 5 compendium XML (or a .zip of XML files). Examples are the collections built by the [FightClub5eXML](https://github.com/vidalvanbergen/FightClub5eXML) project, or the individual files in its `Sources/` folders (select several at once). The project's `Collections/*.xml` files are only indexes; build them with its `build-collections` script first, or import the `Sources/` files directly.
+
+**Or import from GitHub**, without downloading anything first. Paste a public repository link (FightClub5eXML is filled in), a folder link (`…/tree/branch/path`) or a single `.xml` file link.
+
+- **Choosing what to import:** for a repository you pick one of its collections (for example *Core Rulebooks 5.5e* or *WotC 5.5e + Legacy 5e*), a single book, or every `.xml` file.
+- **How files are fetched:** collection and source index files are followed to the compendium files they list. Those files then download from `raw.githubusercontent.com` straight into the browser.
+- **Staying up to date:** **Update from GitHub** re-imports the same selection to pick up changes.
+- **API limits:** listing a repository uses one GitHub API call, which is rate-limited to 60 per hour without signing in. If it's unavailable, FightClub5eXML's usual collections are still offered. Importing never needs the API.
 
 Imported files are parsed in the browser and stored only in that browser (IndexedDB). They are never uploaded or added to this repository. What imports add:
 

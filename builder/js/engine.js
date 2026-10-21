@@ -36,10 +36,11 @@
   /* ---------- Rulesets ---------- */
 
   // A character uses either the 2024 rules or Legacy rules (2024 plus 2014 content).
-  // Legacy content: compendium entries from 2014 sources; their ids end in -2014.
-  DND.isLegacy = function (x) { return !!x && (x.ed === '2014' || x.cat === 'legacy' || /-2014$/.test(x.id || '')); };
+  // Legacy content: compendium entries from 2014 sources (ids end in -2014), and 2014
+  // options republished for 2024 classes with "(Legacy)" in the name (ids end in -legacy).
+  DND.isLegacy = function (x) { return !!x && (x.ed === '2014' || x.cat === 'legacy' || /-(2014|legacy)$/.test(x.id || '') || /\(Legacy\)/i.test(x.name || '')); };
   DND.allowedIn = function (x, ruleset) { return ruleset === 'legacy' || !DND.isLegacy(x); };
-  function legacyId(v) { return typeof v === 'string' && /-2014$/.test(v); }
+  function legacyId(v) { return typeof v === 'string' && /-(2014|legacy)$/.test(v); }
   // Builds saved before rulesets existed count as Legacy if they already use 2014 content.
   DND.rulesetOf = function (build) {
     if (build.ruleset) return build.ruleset;
@@ -49,7 +50,7 @@
   };
   DND.RULESET = '2024';
 
-  function bareName(n) { return String(n || '').replace(/\s*\((2014|2024|legacy)\)\s*$/i, '').replace(/\s*\[5\.5e\]/i, '').trim().toLowerCase(); }
+  function bareName(n) { return String(n || '').replace(/(\s*\((2014|2024|legacy)\))+\s*$/i, '').replace(/\s*\[5\.5e\]/i, '').trim().toLowerCase(); }
   var BASE_NAME = {
     'class': function (n) { return bareName(n.split(' (')[0]); },
     species: function (n) { return bareName(n.split(/,| \(| of /)[0]); },
@@ -60,7 +61,7 @@
   var SUB_ALIAS = { abjuration: 'abjurer', conjuration: 'conjurer', divination: 'diviner', enchantment: 'enchanter', evocation: 'evoker', illusion: 'illusionist',
     necromancy: 'necromancer', transmutation: 'transmuter', 'four elements': 'elements', 'totem warrior': 'wild heart' };
   function subKey(n) {
-    var k = bareName(n).replace(/^(the |way of (the )?|warrior of (the )?|school of |path of (the )?)/, '').replace(/ (patron|sorcery|bloodline|mind|soul)$/, '');
+    var k = bareName(n).replace(/\s*\((legacy|tp|hb|ua)\)/g, '').replace(/^(the |way of (the )?|warrior of (the )?|school of |path of (the )?)/, '').replace(/ (patron|sorcery|bloodline|mind|soul)$/, '');
     return SUB_ALIAS[k] || k;
   }
   // The 2024 counterpart of a legacy entry: same name without the edition tag, else same base name.
@@ -75,14 +76,24 @@
   // Plan an upgrade of a Legacy character to the 2024 rules. Returns the upgraded copy,
   // what changed, and the picks that have no 2024 version (the player chooses those again).
   DND.planUpgrade = function (build) {
-    var nb = clone(build), idMap = {}, changes = [], unresolved = [], extraChoices = {};
+    var nb = clone(build), idMap = {}, changes = [], unresolved = [], extraChoices = {}, dropKeys = [];
     function note(kind, from, to) { if (to) changes.push({ kind: kind, from: from.name, to: to.name }); else unresolved.push({ kind: kind, name: from.name }); }
 
     // Classes (main class and multiclass levels) and their subclasses.
     var clsIds = [build.classId].concat(build.plan || []).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
     clsIds.forEach(function (id) {
       var old = DND.cls(id);
-      if (!old || !DND.isLegacy(old)) return;
+      if (old && !DND.isLegacy(old)) {
+        // A 2024 class with a legacy subclass ("Echo Knight (Legacy)"): find its 2024 version, if any.
+        var picked = find(old.subclasses, build.choices[old.id + '.subclass']);
+        if (picked && DND.isLegacy(picked)) {
+          var modern = old.subclasses.filter(function (y) { return !DND.isLegacy(y) && subKey(y.name) === subKey(picked.name); })[0];
+          note('Subclass', picked, modern);
+          if (modern) idMap[picked.id] = modern.id; else dropKeys.push(old.id + '.subclass');
+        }
+        return;
+      }
+      if (!old) return;
       var to = modernMatch(DND.CLASSES, old, 'class');
       note('Class', old, to);
       if (!to) return;
@@ -141,6 +152,7 @@
       choices[k.split('.').map(mapId).join('.')] = Array.isArray(v) ? v.map(mapId) : mapId(v);
     });
     Object.keys(extraChoices).forEach(function (k) { choices[k] = extraChoices[k]; });
+    dropKeys.forEach(function (k) { delete choices[k]; });
     nb.choices = choices;
     if (nb.spellPlan) {
       var sp2 = {};
@@ -695,10 +707,11 @@
         if (f.subclassSlot) {
           var e = { name: c.subclassLabel, desc: 'Choose your subclass. Its features are added at the levels shown.', source: 'Class', choices: [] };
           runChoices([{ id: 'subclass', label: c.subclassLabel, kind: 'one',
-            options: c.subclasses.map(function (sc) { return { id: sc.id, label: sc.name, desc: sc.desc, group: sc.compendium ? 'From your compendium' : '' }; }),
+            options: c.subclasses.filter(function (sc) { return DND.allowedIn(sc, DND.RULESET) || sc.id === build.choices[cp + 'subclass']; }).map(function (sc) { return { id: sc.id, label: sc.name, desc: sc.desc, group: sc.compendium ? 'From your compendium' : '' }; }),
             apply: function (st, v) { st.subclass = v; } }], cp, s, build, e.choices);
           entries.push(e);
           tk.sub = find(c.subclasses, s.subclass);
+          if (tk.sub && !DND.allowedIn(tk.sub, DND.RULESET)) s.warnings.push(tk.sub.name + ' is legacy content, and this character uses the 2024 rules. Choose a 2024 subclass.');
         } else {
           entries.push(processFeature(f, cp + 'L' + CL + '.', s, build, 'Class'));
         }
