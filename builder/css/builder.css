@@ -601,3 +601,12 @@ body.printing { overflow: hidden; }
 .pips.up .pip { background: transparent; border-color: var(--line); }
 .pips.up.good .pip.spent { background: var(--accent); border-color: var(--accent); }
 .pips.up.bad .pip.spent { background: var(--bad); border-color: var(--bad); }
+
+/* Active conditions (Play tab and summary) */
+.cond.on { border-color: var(--bad); background: var(--bad-soft); }
+.cond.on .ico { color: var(--bad); }
+.cond-active { margin-top: 12px; }
+.cond-active .row > span { display: block; }
+.sum-conds { display: flex; flex-wrap: wrap; gap: 6px; padding: 8px 16px 0; }
+.cond-chip { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border: 1px solid var(--bad); border-radius: 999px; background: var(--bad-soft); color: var(--bad); font: inherit; font-size: .82rem; cursor: pointer; }
+.cond-chip .ico { width: 14px; height: 14px; }

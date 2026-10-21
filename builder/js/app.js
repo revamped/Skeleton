@@ -513,7 +513,7 @@
     var html = '<section class="card"><div class="sum-head"><div class="sum-icons">' + lv.d.classLevels.map(function (c) { return badge(D.classIcon(D.cls(c.id) || { name: c.name })); }).join('') +
       badge(D.speciesIcon(speciesBase(ev.species.name))) + badge(D.backgroundIcon(ev.background.name)) + '</div><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + (ev.ruleset === 'legacy' ? ' · Legacy' : '') + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
       '<span class="muted">' + esc(ev.multiclass ? classSplit(lv) : ev.cls.name + (subName(lv) ? ' · ' + subName(lv) : '')) + ' · ' + esc(ev.background.name) + '</span></div>' +
-      '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' + hpBar(d, true) + summaryGear(b) +
+      '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' + hpBar(d, true) + summaryConditions() + summaryGear(b) +
       '<div class="abil-row">' + D.ABILITIES.map(function (a) {
         return '<div class="abil' + (s.abilities[a] > base.abilities[a] ? ' raised' : '') + '" title="' + D.ABILITY_NAMES[a] + (d.saves[a].prof ? ', proficient save' : '') + '">' + ico(D.abilityIcon(a), 'abil-ico') + '<span class="eyebrow">' + a + '</span><b>' + s.abilities[a] + '</b><small>' + sign(d.mods[a]) + '</small></div>';
       }).join('') + '</div>';
@@ -527,6 +527,16 @@
     if (s.warnings.length) html += '<div class="sum-section"><ul class="warn-list">' + s.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
     html += '</section>';
     return html;
+  }
+
+  // Icons for the conditions active in the Play tab.
+  function summaryConditions() {
+    var p = play(), on = p.conds || {};
+    var list = D.CONDITIONS.filter(function (c) { return on[c[0]] || (c[0] === 'Exhaustion' && p.exh); });
+    if (!list.length) return '';
+    return '<div class="sum-conds">' + list.map(function (c) {
+      return '<button type="button" class="cond-chip" data-condinfo="' + esc(c[0]) + '" title="' + esc(c[0] + ': ' + c[1]) + '">' + ico(D.conditionIcon(c[0])) + esc(c[0]) + (c[0] === 'Exhaustion' ? ' ' + p.exh : '') + '</button>';
+    }).join('') + '</div>';
   }
 
   // Worn armor and shield, with their icons.
@@ -850,9 +860,26 @@
       '<label class="sr" for="ctr-reset">Resets</label><select id="ctr-reset"><option value="long">Long Rest</option><option value="short">Short Rest</option><option value="turn">Each turn</option><option value="none">Manual</option></select>' +
       '<button type="submit" class="btn btn-small">Add</button></form></div></section>';
 
+    var conds = playConditions(p);
     var combat = '<section class="card"><div class="card-head"><h3>Attacks</h3><span class="muted">Click a bonus or damage to roll</span></div><div class="card-body">' + attackTable(d) + '</div></section>';
     return '<div class="toolbar"><h2>Play at level ' + b.level + '</h2><span class="muted">Track HP, uses and slots during a session. Rolls appear in the dice tray.</span></div>' +
-      '<div class="play-grid">' + vitals + turn + combat + playSpells(b, lv, pr) + slots + uses + rests + custom + '</div>';
+      '<div class="play-grid">' + vitals + turn + conds + combat + playSpells(b, lv, pr) + slots + uses + rests + custom + '</div>';
+  }
+
+  // Conditions the character has right now, toggled on and off during play.
+  function playConditions(p) {
+    var defs = conditionDefenses(), on = p.conds || {};
+    var active = D.CONDITIONS.filter(function (c) { return on[c[0]] || (c[0] === 'Exhaustion' && p.exh); });
+    return '<section class="card"><div class="card-head"><h3>Conditions</h3><span class="muted">' + (active.length ? active.length + ' active' : 'None active') + '</span></div><div class="card-body">' +
+      '<div class="cond-grid">' + D.CONDITIONS.map(function (c) {
+        var exh = c[0] === 'Exhaustion', isOn = exh ? !!p.exh : !!on[c[0]];
+        return '<button type="button" class="cond' + (isOn ? ' on' : '') + '" ' + (exh ? 'data-condinfo="Exhaustion"' : 'data-cond="' + esc(c[0]) + '" aria-pressed="' + isOn + '"') + '>' +
+          ico(D.conditionIcon(c[0])) + '<span>' + esc(c[0]) + (exh && p.exh ? ' ' + p.exh : '') + '</span>' + conditionBadge(defs[c[0]]) + '</button>';
+      }).join('') + '</div>' +
+      (active.length ? '<div class="rows cond-active">' + active.map(function (c) {
+        return '<div class="row"><span>' + ico(D.conditionIcon(c[0]), 'skill-ico') + '<button type="button" class="linklike" data-condinfo="' + esc(c[0]) + '">' + esc(c[0]) + '</button> <span class="muted">' + esc(c[1]) + '</span></span></div>';
+      }).join('') + '</div>' : '<p class="desc">Select a condition when it applies to you; select it again when it ends. Exhaustion is tracked above.</p>') +
+      '</div></section>';
   }
 
   // Spells with damage or healing dice, with the slot to cast them at.
@@ -1909,9 +1936,12 @@
   // Play tab controls. Returns true when the click was handled.
   function onPlayClick(t) {
     var ds = t.dataset;
-    if (!(ds.pip || ds.cnt || ds.hp || ds.turn || ds.nextturn || ds.rest || ds.hd || ds.acb || ds.insp || ds.cast || ds.delcustom)) return false;
+    if (!(ds.cond || ds.pip || ds.cnt || ds.hp || ds.turn || ds.nextturn || ds.rest || ds.hd || ds.acb || ds.insp || ds.cast || ds.delcustom)) return false;
     var b = cur(), d = ev.levels[b.level - 1].d, p = play();
-    if (ds.pip) {
+    if (ds.cond) {
+      p.conds = p.conds || {};
+      if (p.conds[ds.cond]) delete p.conds[ds.cond]; else p.conds[ds.cond] = true;
+    } else if (ds.pip) {
       var i = +ds.i, n = ds.pip === 'exh' ? p.exh || 0 : ds.pip.indexOf('death:') === 0 ? p.death[ds.pip.slice(6)] : used(ds.pip);
       var next = i < n ? i : i + 1;
       if (ds.pip === 'exh') p.exh = next;
