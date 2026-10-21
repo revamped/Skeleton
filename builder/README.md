@@ -24,6 +24,7 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
 - **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
 - **Play tab**: track a character during a session at the viewed level.
   - **Health**: HP and temp HP bars with Damage, Heal and Temp HP (temp HP absorbs damage first), death saves at 0 HP, a temporary AC bonus, Exhaustion and Heroic Inspiration.
+  - **Conditions**: toggle the conditions affecting you. Each has its icon and Immune/Advantage badges from your build. Active ones list their rules here and appear as icon chips in the summary panel on every tab.
   - **Turn markers**: Action, Bonus Action, Reaction, each attack of the Attack action, and once-per-turn features such as Sneak Attack. **Next turn** clears them.
   - **Limited uses**: class resources (Rages, Focus Points, Channel Divinity, Second Wind, Sorcery Points…), Lay On Hands and Bardic Inspiration pools, and features or traits usable once or a few times per rest. Each is tagged Short or Long Rest.
   - **Spell slots and Pact slots**, plus a spell list where **Cast** spends a slot and rolls the damage or healing scaled to that slot. Cantrips scale with level.
