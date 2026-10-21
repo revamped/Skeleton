@@ -470,3 +470,5 @@ body.printing { overflow: hidden; }
   .ps-vitals { grid-template-columns: repeat(6, 1fr); }
   .ps-cols2 { column-count: 2; }
 }
+
+.ps-link { color: var(--gold); font-weight: 700; }

@@ -1317,6 +1317,10 @@
   /* ---------- Printable sheet ---------- */
 
   var inFrame = (function () { try { return window.self !== window.top; } catch (e) { return true; } })();
+  // The GitHub Pages copy of this app, where printing works.
+  var PAGES_URL = 'https://revamped.github.io/Skeleton/builder/';
+  function encodeBuild(b) { return btoa(unescape(encodeURIComponent(JSON.stringify(b)))); }
+  function decodeBuild(s) { return JSON.parse(decodeURIComponent(escape(atob(s)))); }
   function renderPrint() {
     var root = $('#print-root');
     if (!app.print) { root.hidden = true; root.innerHTML = ''; document.body.classList.remove('printing'); return; }
@@ -1327,7 +1331,8 @@
       '<button type="button" class="btn" data-print="copy">Copy as text</button>' +
       '<button type="button" class="btn" data-print="close">Close</button></div>' +
       (app.print.msg ? '<p class="ps-msg" aria-live="polite">' + esc(app.print.msg) + '</p>' : '') +
-      (inFrame ? '<p class="ps-msg">Printing is blocked inside the Claude viewer. To print or save a PDF, open Levelwright from the repository (builder/index.html) in your browser. Copy as text works here.</p>' : '') +
+      (inFrame ? '<p class="ps-msg">Printing is blocked inside the Claude viewer. <a class="ps-link" href="' + PAGES_URL + '#import=' + encodeURIComponent(encodeBuild(b)) + '" target="_blank" rel="noopener">Open this build on GitHub Pages</a> to print or save a PDF. ' +
+        (D.CONTENT.user ? 'Content from your imported compendium needs to be imported there too. ' : '') + 'Copy as text works here.</p>' : '') +
       '</div><div class="ps-paper">' + D.printSheet.html(b, ev, { full: app.print.full }) + '</div>';
     root.hidden = false;
     document.body.classList.add('printing');
@@ -1595,6 +1600,21 @@
   $('#modal').addEventListener('click', function (e) { if (e.target.id === 'modal') closeModal(); });
 
   load();
+  // A build handed over in the link (#import=…) opens straight to its printable sheet.
+  var handoff = /^#import=(.+)$/.exec(location.hash || '');
+  if (handoff) {
+    try {
+      var nb = decodeBuild(decodeURIComponent(handoff[1]));
+      if (nb && nb.classId && nb.base) {
+        var fresh = D.newBuild();
+        Object.keys(fresh).forEach(function (k) { if (nb[k] === undefined) nb[k] = fresh[k]; });
+        app.builds = app.builds.filter(function (x) { return x.id !== nb.id; }).concat(nb);
+        app.currentId = nb.id; app.tab = 'sheet'; app.print = { full: false };
+        save();
+      }
+    } catch (e) { /* not a valid build link */ }
+    try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
+  }
   var hashTab = (location.hash || '').replace('#', '');
   if (['build', 'sheet', 'gear', 'spells', 'companions', 'library', 'progression'].indexOf(hashTab) >= 0) app.tab = hashTab;
   D.registerContent();

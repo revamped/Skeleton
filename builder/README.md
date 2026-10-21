@@ -4,6 +4,10 @@ A Pathbuilder-style build planner for the 2024 (5.5e) rules. Pick a class, speci
 
 Open `index.html` in a browser. It needs no build step or server, and builds are saved in the browser's localStorage.
 
+**Hosted copy (GitHub Pages):** https://revamped.github.io/Skeleton/builder/
+
+This copy can print and save PDFs. To turn it on (once), go to the repository's **Settings → Pages**, choose **Deploy from a branch**, pick the branch that has this folder (and **/ (root)**), then save. If you later merge into `master`, switch the branch there. The `.nojekyll` file at the repository root tells Pages to serve the files as they are. Builds saved in one browser copy don't appear in another. Inside the Claude artifact viewer, the printable sheet has an **Open this build on GitHub Pages** link that carries the current build over.
+
 ## What it does
 
 - **Build tab**: the origin (class, species, background, ability scores by standard array, point buy or manual) plus a card for each of the 20 levels. Each card lists that level's features and the choices to make there: skills, subclass, feats/ASIs, fighting styles, weapon masteries, expertise, invocations, metamagic, maneuvers, Mystic Arcanum and so on. Open choices are flagged in red, both on the card and on the level rail in the header.
@@ -24,7 +28,7 @@ Open `index.html` in a browser. It needs no build step or server, and builds are
   - spellcasting per class with slot bubbles, plus equipment with coin boxes, companions and note lines
   - **Print / Save as PDF** uses the browser's print dialog
   - **Copy as text** gives a compact plain-text version for notes or VTTs
-  - the Claude artifact viewer blocks printing; open `index.html` from this folder to print
+  - the Claude artifact viewer blocks printing; use the GitHub Pages copy or open `index.html` locally
 - **Gear tab**: armor, shield and weapons (including magic weapons and armor with their bonuses) plus an inventory. Equipped (and attuned) items apply their effects: AC, saving throws, spell attack/DC, speed, initiative, and items that set an ability score. Weight, carrying capacity and the three-item attunement limit are tracked.
 - **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Optionally include 2014 spells from an imported compendium.
   - **Per-level learning and swapping:** edits apply at the class level you're viewing and carry forward until a later level changes them.
