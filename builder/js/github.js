@@ -71,8 +71,8 @@
       var cols = xml.filter(function (p) { return /(^|\/)Collections\/[^/]+\.xml$/i.test(p); });
       return { src: src, collections: cols, files: xml, truncated: tree.truncated };
     }, function (err) {
-      // Without the API, FightClub5eXML's collections are still known.
-      if (src.kind === 'repo' && /^fightclub5exml$/i.test(src.repo)) return { src: src, collections: FC5_COLLECTIONS, files: null, offline: err.message };
+      // Without the API (rate limit), FightClub5eXML's collections are still known. No network at all is an error.
+      if (src.kind === 'repo' && /^fightclub5exml$/i.test(src.repo) && !(err instanceof TypeError)) return { src: src, collections: FC5_COLLECTIONS, files: null, offline: err.message };
       throw err;
     });
   };

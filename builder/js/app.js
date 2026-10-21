@@ -1633,12 +1633,14 @@
   }
   function githubError(err) {
     var m = err && err.message || String(err);
+    if (navigator.onLine === false) return 'You\'re offline. Importing from GitHub needs a connection; everything else works offline.';
     if (/Failed to fetch|NetworkError|Load failed|blocked/i.test(m)) {
       return 'Couldn\'t reach GitHub from this page.' + (inFrame ? ' The Claude viewer blocks downloads; <a href="' + PAGES_URL + '#library" target="_blank" rel="noopener">open the GitHub Pages copy</a> to import from GitHub.' : ' Check your connection and try again.');
     }
     return esc(m);
   }
   function githubFind(url) {
+    if (navigator.onLine === false) { app.gh = { url: url, listing: null, busy: false, msg: githubError(new Error('offline')) }; render(); return; }
     app.gh = { url: url, listing: null, busy: true, msg: '' }; render();
     D.githubListing(url).then(function (L) {
       app.gh.busy = false;
@@ -1932,6 +1934,8 @@
         if (!app.builds.length) app.builds.push(D.newBuild());
         app.currentId = app.builds[0].id; commit(); break;
       case 'io': app.modal = { type: 'io' }; renderModal(); break;
+      case 'install': installApp(); break;
+      case 'reload': location.reload(); break;
     }
   }
 
@@ -2094,6 +2098,42 @@
       });
   }
 
+  /* ---------- Installable app & offline ---------- */
+
+  var installPrompt = null, updateReady = false;
+  var isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  function standalone() { return (window.matchMedia && matchMedia('(display-mode: standalone)').matches) || navigator.standalone === true; }
+  function updatePwaUi() {
+    var inst = $('#install-btn'), upd = $('#update-btn'), net = $('#net-pill');
+    if (inst) inst.hidden = inFrame || standalone() || !(installPrompt || isIOS);
+    if (upd) upd.hidden = !updateReady;
+    if (net) net.hidden = navigator.onLine !== false;
+  }
+  function installApp() {
+    if (installPrompt) {
+      installPrompt.prompt();
+      installPrompt.userChoice.then(function () { installPrompt = null; updatePwaUi(); });
+      return;
+    }
+    app.modal = { type: 'detail', title: 'Install Levelwright', sub: 'Add it to your Home Screen',
+      html: '<ol class="install-steps"><li>Tap the <b>Share</b> button in Safari (the square with an arrow).</li><li>Choose <b>Add to Home Screen</b>.</li><li>Tap <b>Add</b>. Levelwright opens full screen from its icon and works offline.</li></ol>' +
+        '<p class="desc">Your characters stay saved on this device. Use Export / Import to copy one to another device.</p>' };
+    renderModal();
+  }
+  function setupPwa() {
+    window.addEventListener('beforeinstallprompt', function (e) { e.preventDefault(); installPrompt = e; updatePwaUi(); });
+    window.addEventListener('appinstalled', function () { installPrompt = null; updatePwaUi(); });
+    window.addEventListener('online', updatePwaUi);
+    window.addEventListener('offline', updatePwaUi);
+    updatePwaUi();
+    // The service worker needs a secure origin; the Claude viewer's sandbox doesn't allow one.
+    if (inFrame || !('serviceWorker' in navigator) || !(location.protocol === 'https:' || /^(localhost|127\.0\.0\.1)$/.test(location.hostname))) return;
+    navigator.serviceWorker.register('sw.js').catch(function () {});
+    navigator.serviceWorker.addEventListener('message', function (e) {
+      if (e.data && e.data.type === 'updated') { updateReady = true; updatePwaUi(); }
+    });
+  }
+
   function onKey(e) {
     if (e.key === 'Escape' && app.modal) { closeModal(); return; }
     if (e.key === 'Escape' && app.print) { app.print = null; renderPrint(); return; }
@@ -2111,6 +2151,7 @@
   $('#modal').addEventListener('click', function (e) { if (e.target.id === 'modal') closeModal(); });
 
   load();
+  setupPwa();
   // A build handed over in the link (#import=…) opens straight to its printable sheet.
   var handoff = /^#import=(.+)$/.exec(location.hash || '');
   if (handoff) {

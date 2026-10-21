@@ -51,6 +51,16 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
 - Multiple saved builds, Duplicate (to compare variants), and Export/Import as JSON text.
 - **Rulesets**: each character uses either the **2024 rules** or **Legacy content**, chosen when it's created (New). Legacy characters can also pick 2014 classes, species, backgrounds, feats and spells from an imported compendium, plus 2014 subclasses republished for 2024 classes (named "(Legacy)", as in FightClub5eXML's Legacy_5e set). The choice is locked: a 2024 character can't switch to Legacy. A Legacy character can be upgraded to the 2024 rules from the Build tab. The upgrade swaps each 2014 pick for its 2024 version (including renamed subclasses such as Way of Shadow → Warrior of Shadow), rebuilds every level, clears choices that no longer exist and lists anything to choose again. It can upgrade the character in place or a copy. Builds saved before rulesets existed count as Legacy if they use 2014 content.
 
+## Install and offline use
+
+The hosted copy (GitHub Pages) is an installable app that works offline:
+
+- **Install:** on Chrome, Edge and Android, use **Install app** in the header (or the browser's install option). On iPhone and iPad, **Install app** shows the steps: Share → **Add to Home Screen**. Installed, it opens full screen from its own icon.
+- **Offline:** after the first visit everything works without a connection, including your builds, the SRD content, an imported compendium, dice and the Play tab. Only importing from GitHub needs a connection, and an **Offline** badge shows in the header while you're disconnected.
+- **Updates:** files are served from the cache and refreshed in the background. When a new version has been downloaded, an **Update ready · Reload** button appears.
+
+The service worker is `sw.js`, the manifest is `manifest.webmanifest`, and the icons in `icons/` are drawn by `tools/make-icons.py`. When adding or removing app files, update the list in `sw.js` and bump its `CACHE` name.
+
 ## Content
 
 Built in (SRD 5.2, the CC-BY part of the 2024 rules):
