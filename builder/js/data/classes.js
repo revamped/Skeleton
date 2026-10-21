@@ -56,7 +56,7 @@
   }
   function EXTRA_ATTACK(n) {
     var names = ['Extra Attack', 'Two Extra Attacks', 'Three Extra Attacks'];
-    return F(names[n - 1], 'Attack ' + (n + 1) + ' times instead of once when you take the Attack action.', { apply: function (s) { s.attacks = n + 1; } });
+    return F(names[n - 1], 'Attack ' + (n + 1) + ' times instead of once when you take the Attack action.', { apply: function (s) { s.attacks = Math.max(s.attacks, n + 1); } });
   }
   // Always-prepared subclass spells unlocked at class levels.
   function subSpells(table, source) {
@@ -144,7 +144,7 @@
       8: [ASI()],
       9: [F('Expertise', 'Gain Expertise in two more skills you\'re proficient in.', { choices: [DND.expertiseChoice('skills', 'Expertise skills', 2)] })],
       10: [F('Magical Secrets', 'Your prepared spells can come from the Bard, Cleric, Druid, and Wizard spell lists; they count as Bard spells.', {
-        apply: function (s) { s.spells.extraLists = ['cleric', 'druid', 'wizard']; } })],
+        apply: function (s) { s.spells.extraLists = ['cleric', 'druid', 'wizard']; s.spells.extraListsFor = s.curClassId; } })],
       12: [ASI()],
       16: [ASI()],
       18: [F('Superior Inspiration', 'When you roll Initiative, regain Bardic Inspiration uses until you have two if you have fewer.')],
@@ -181,7 +181,7 @@
             opt('thaumaturge', 'Thaumaturge', 'One extra Cleric cantrip, and add your Wis mod (min +1) to Arcana and Religion checks.')],
           apply: function (s, v) {
             if (v === 'protector') { DND.addProf(s, 'weapons', 'martial'); DND.addProf(s, 'armor', 'heavy'); }
-            else { s.spells.bonusCantrips += 1; s.skillBonus.push({ skills: ['arcana', 'religion'], ability: 'wis', min: 1 }); }
+            else { s.spells.bonusCantrips += 1; s.spells.bonusCantripsFor = s.curClassId; s.skillBonus.push({ skills: ['arcana', 'religion'], ability: 'wis', min: 1 }); }
           } }] })],
       2: [F('Channel Divinity', 'Channel divine energy for Divine Spark (heal or deal 1d8 Necrotic/Radiant, scaling at 7, 13, 18) or Turn Undead. Regain one use on a Short Rest.')],
       3: [SUB(3)],
@@ -233,7 +233,7 @@
             opt('warden', 'Warden', 'Proficiency with Martial weapons and Medium armor.')],
           apply: function (s, v) {
             if (v === 'warden') { DND.addProf(s, 'weapons', 'martial'); DND.addProf(s, 'armor', 'medium'); }
-            else { s.spells.bonusCantrips += 1; s.skillBonus.push({ skills: ['arcana', 'nature'], ability: 'wis', min: 1 }); }
+            else { s.spells.bonusCantrips += 1; s.spells.bonusCantripsFor = s.curClassId; s.skillBonus.push({ skills: ['arcana', 'nature'], ability: 'wis', min: 1 }); }
           } }] })],
       2: [F('Wild Shape', 'Bonus Action: take the form of a Beast you know (max CR 1/4, 1/2 at level 4, 1 at level 8). Gain Temp HP equal to Druid level. Regain one use on a Short Rest.'),
         F('Wild Companion', 'Expend a spell slot or Wild Shape use to cast Find Familiar without material components; the familiar is a Fey.')],
@@ -726,6 +726,26 @@
       }
     }]
   });
+
+  // Multiclassing (2024 rules): ability requirements and the proficiencies a class grants
+  // when it isn't your first class.
+  var MULTICLASS = {
+    barbarian: { req: { all: ['str'] }, armor: ['shield'], weapons: ['martial'] },
+    bard: { req: { all: ['cha'] }, armor: ['light'], skills: 1, tools: ['One Musical Instrument'] },
+    cleric: { req: { all: ['wis'] }, armor: ['light', 'medium', 'shield'] },
+    druid: { req: { all: ['wis'] }, armor: ['light', 'shield'] },
+    fighter: { req: { any: ['str', 'dex'] }, armor: ['light', 'medium', 'shield'], weapons: ['martial'] },
+    monk: { req: { all: ['dex', 'wis'] } },
+    paladin: { req: { all: ['str', 'cha'] }, armor: ['light', 'medium', 'shield'], weapons: ['martial'] },
+    ranger: { req: { all: ['dex', 'wis'] }, armor: ['light', 'medium', 'shield'], weapons: ['martial'], skills: 1 },
+    rogue: { req: { all: ['dex'] }, armor: ['light'], skills: 1, tools: ["Thieves' Tools"] },
+    sorcerer: { req: { all: ['cha'] } },
+    warlock: { req: { all: ['cha'] }, armor: ['light'] },
+    wizard: { req: { all: ['int'] } }
+  };
+  DND.CLASSES.forEach(function (c) { c.mc = MULTICLASS[c.id]; });
+  // Spell slot contribution for multiclass spellcasters.
+  DND.CLASSES.forEach(function (c) { if (c.caster) c.caster.mcKind = c.caster.type === 'pact' ? 'pact' : c.caster.type; });
 
   DND.cls = function (id) {
     for (var i = 0; i < DND.CLASSES.length; i++) if (DND.CLASSES[i].id === id) return DND.CLASSES[i];

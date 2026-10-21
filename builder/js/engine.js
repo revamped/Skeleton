@@ -43,7 +43,7 @@
       resist: [], senses: [], notes: [], warnings: [], flags: {},
       unarmored: [], speed: species ? species.speed : 30, speedNoHeavy: 0, unarmoredSpeed: 0,
       darkvision: species ? species.darkvision : 0, size: species ? species.size : 'Medium',
-      hpPerLevel: 0, hpFlat: 0, attacks: 1, crit: 20, subclass: null, lineageSpells: null
+      hpPerLevel: 0, hpFlat: 0, attacks: 1, crit: 20, subclass: null, lineageSpells: null, hdList: []
     };
   }
 
@@ -186,6 +186,42 @@
   function sign(n) { return (n >= 0 ? '+' : '') + n; }
   DND.sign = sign;
 
+  function classBase(name) { return name.split(' (')[0]; }
+  function casterKind(c) { return c.mcKind || (c.type === 'pact' ? 'pact' : c.type === 'half' ? 'half' : c.type === 'full' ? 'full' : c.preparedFormula || 'full'); }
+  function casterLevelOf(c, cl) {
+    var k = casterKind(c);
+    return k === 'full' ? cl : k === 'half' ? Math.ceil(cl / 2) : k === 'third' ? Math.floor(cl / 3) : 0;
+  }
+  function ownSlots(c, cl) {
+    if (c.type === 'table') return c.slots[cl - 1] || [];
+    return DND.SLOTS[c.type] ? DND.SLOTS[c.type][cl - 1] : [];
+  }
+  function pactSlots(c, cl) {
+    if (c.type === 'pact') return { count: DND.PACT.slots[cl - 1], level: DND.PACT.level[cl - 1] };
+    var row = c.slots[cl - 1] || [], out = { count: 0, level: 0 };
+    row.forEach(function (n, i) { if (n) { out.count = n; out.level = i + 1; } });
+    return out;
+  }
+
+  // The class that gains each character level (level 1 is always the main class).
+  DND.classAt = function (build, L) { return (L > 1 && build.plan && build.plan[L - 1]) || build.classId; };
+  // Spell picks are stored per class; the main class keeps build.spells.
+  DND.spellsFor = function (build, clsId) {
+    if (!clsId || clsId === build.classId) return build.spells;
+    build.spellsBy = build.spellsBy || {};
+    return build.spellsBy[clsId] = build.spellsBy[clsId] || { cantrips: [], prepared: [] };
+  };
+  function meetsReq(s, req) {
+    if (!req) return true;
+    if (req.any) return req.any.some(function (a) { return s.abilities[a] >= 13; });
+    return (req.all || []).every(function (a) { return s.abilities[a] >= 13; });
+  }
+  function reqText(req) {
+    if (!req) return '';
+    var list = (req.any || req.all).map(function (a) { return DND.ABILITY_NAMES[a]; });
+    return list.join(req.any ? ' or ' : ' and ') + ' 13';
+  }
+
   // Effects of equipped (and, where required, attuned) inventory items.
   function itemEffects(build) {
     var fx = { ac: 0, save: 0, spellAtk: 0, spellDc: 0, speed: 0, init: 0, scores: [], attuned: 0, weight: 0, names: [] };
@@ -206,7 +242,7 @@
     return fx;
   }
 
-  function compute(s, build, cls, caster, sub) {
+  function compute(s, build, cls, taken) {
     var fx = itemEffects(build);
     fx.scores.forEach(function (x) { if (s.abilities[x.ab] < x.score) s.abilities[x.ab] = x.score; });
     if (fx.attuned > 3) s.warnings.push('Attuned to ' + fx.attuned + ' items; the limit is 3.');
@@ -215,10 +251,14 @@
     var d = { pb: pb, mods: mods, items: fx };
 
     // Hit points (Con changes apply retroactively).
-    var hp = Math.max(1, cls.hd + mods.con);
-    for (var l = 2; l <= L; l++) hp += Math.max(1, avg(cls.hd) + mods.con);
+    var dice = s.hdList.length ? s.hdList : [cls.hd];
+    var hp = 0, byDie = {};
+    dice.forEach(function (hd, i) {
+      hp += Math.max(1, (i === 0 ? hd : avg(hd)) + mods.con);
+      byDie[hd] = (byDie[hd] || 0) + 1;
+    });
     d.hp = hp + s.hpPerLevel * L + s.hpFlat;
-    d.hitDice = L + 'd' + cls.hd;
+    d.hitDice = Object.keys(byDie).sort(function (a, b) { return b - a; }).map(function (k) { return byDie[k] + 'd' + k; }).join(' + ');
 
     // Armor class.
     var gear = build.gear || {};
@@ -272,25 +312,45 @@
     d.passivePerception = 10 + d.skills.perception.total;
     d.carry = s.abilities.str * 15;
 
-    // Spellcasting.
-    var c = caster;
-    if (c) {
+    // Spellcasting: one entry per class that casts; slots are shared.
+    var entries = [];
+    taken.forEach(function (tk) {
+      var c = (tk.sub && tk.sub.caster) || tk.cls.caster;
+      if (!c) return;
+      var cl = tk.level;
+      var maxL = maxSpellLevel(c, cl);
+      var cantrips = c.cantrips ? (+c.cantrips[cl - 1] || 0) : 0;
+      if (!maxL && !cantrips) return;
       var m = mods[c.ability];
       var prepared;
-      if (c.prepared) prepared = +c.prepared[L - 1] || 0;
-      else prepared = Math.max(1, m + (c.preparedFormula === 'half' ? Math.floor(L / 2) : c.preparedFormula === 'third' ? Math.floor(L / 3) : L));
-      var lists = [c.list].concat(s.spells.extraLists || []);
+      if (c.prepared) prepared = +c.prepared[cl - 1] || 0;
+      else prepared = Math.max(1, m + (c.preparedFormula === 'half' ? Math.floor(cl / 2) : c.preparedFormula === 'third' ? Math.floor(cl / 3) : cl));
+      if (s.spells.bonusCantripsFor === tk.cls.id || (!s.spells.bonusCantripsFor && !entries.length)) cantrips += s.spells.bonusCantrips;
+      var lists = [c.list];
+      if (s.spells.extraLists && (!s.spells.extraListsFor || s.spells.extraListsFor === tk.cls.id)) lists = lists.concat(s.spells.extraLists);
+      if (tk.sub && tk.sub.extraList) lists.push(tk.sub.extraList);
       if (build.options && build.options.legacySpells && DND.SPELL_LISTS[c.list + ':legacy']) lists.push(c.list + ':legacy');
-      d.spell = {
+      entries.push({
+        clsId: tk.cls.id, className: tk.cls.name, classLevel: cl, caster: c,
         ability: c.ability, dc: 8 + pb + m + fx.spellDc, attack: pb + m + fx.spellAtk, type: c.type,
-        cantrips: c.cantrips ? (+c.cantrips[L - 1] || 0) + s.spells.bonusCantrips : 0,
-        prepared: prepared,
-        maxLevel: maxSpellLevel(c, L),
-        slots: c.type === 'pact' ? null : c.type === 'table' ? c.slots[L - 1] : DND.SLOTS[c.type][L - 1],
-        pact: c.type === 'pact' ? { count: DND.PACT.slots[L - 1], level: DND.PACT.level[L - 1] } : null,
-        lists: lists.filter(function (x) { return DND.SPELL_LISTS[x]; })
-      };
+        cantrips: cantrips, prepared: prepared, maxLevel: maxL,
+        lists: lists.filter(function (x, i, a) { return DND.SPELL_LISTS[x] && a.indexOf(x) === i; })
+      });
+    });
+    var slotters = entries.filter(function (e) { return casterKind(e.caster) !== 'pact'; });
+    var slots = null, pact = null;
+    if (slotters.length === 1) slots = ownSlots(slotters[0].caster, slotters[0].classLevel);
+    else if (slotters.length > 1) {
+      var casterLevel = slotters.reduce(function (n, e) { return n + casterLevelOf(e.caster, e.classLevel); }, 0);
+      slots = casterLevel > 0 ? DND.SLOTS.full[Math.min(20, casterLevel) - 1] : [];
+      d.casterLevel = casterLevel;
     }
+    entries.filter(function (e) { return casterKind(e.caster) === 'pact'; }).forEach(function (e) {
+      pact = pactSlots(e.caster, e.classLevel);
+    });
+    entries.forEach(function (e) { e.slots = slots; e.pact = pact; });
+    d.spellcasters = entries;
+    d.spell = entries[0] || null;
 
     // Weapon attacks from the gear list.
     var weaponIds = (gear.weapons || []).slice();
@@ -298,13 +358,14 @@
       var w = e.equipped && DND.WEAPONS.filter(function (x) { return x.itemId === e.id; })[0];
       if (w && weaponIds.indexOf(w.id) < 0) weaponIds.push(w.id);
     });
+    var isMonk = taken.some(function (tk) { return tk.cls.id === 'monk'; });
     d.attacks = weaponIds.map(function (id) {
       var w = DND.weapon(id);
       if (!w) return null;
       var prof = weaponProficient(s, w);
       var ab = w.ranged ? 'dex' : /F/.test(w.props) ? (mods.dex > mods.str ? 'dex' : 'str') : 'str';
       var die = w.dmg;
-      var monkWeapon = cls.id === 'monk' && s.martialArts && (w.cat === 'simple' || /L/.test(w.props)) && !w.ranged;
+      var monkWeapon = isMonk && s.martialArts && (w.cat === 'simple' || /L/.test(w.props)) && !w.ranged;
       if (monkWeapon) {
         if (mods.dex > mods[ab]) ab = 'dex';
         if (parseInt(s.martialArts.split('d')[1], 10) > parseInt(die.split('d')[1] || 0, 10)) die = s.martialArts;
@@ -317,7 +378,7 @@
         prof: prof, mastery: mastered ? w.mastery : null, props: w.props, ranged: w.ranged, magic: !!w.magic
       };
     }).filter(Boolean);
-    if (cls.id === 'monk') {
+    if (isMonk && s.martialArts) {
       var ma = mods.dex > mods.str ? 'dex' : 'str';
       d.attacks.unshift({ name: 'Unarmed Strike', hit: mods[ma] + pb, dmg: s.martialArts + ' ' + sign(mods[ma]).replace('+', '+ ').replace('-', '− ') + ' bludgeoning', prof: true, mastery: null, props: '' });
     }
@@ -325,7 +386,13 @@
     d.crit = s.crit;
 
     // Class table columns for this level.
-    d.columns = (cls.columns || []).concat(sub && sub.columns || []).map(function (col) { return { label: col.label, value: col.values[L - 1] }; });
+    d.columns = [];
+    taken.forEach(function (tk) {
+      (tk.cls.columns || []).concat(tk.sub && tk.sub.columns || []).forEach(function (col) {
+        d.columns.push({ cls: classBase(tk.cls.name), label: col.label, value: col.values[tk.level - 1] });
+      });
+    });
+    d.classLevels = taken.map(function (tk) { return { id: tk.cls.id, name: tk.cls.name, level: tk.level, sub: tk.sub ? tk.sub.name : null }; });
     return d;
   }
 
@@ -398,57 +465,88 @@
     cls.weapons.forEach(function (w) { DND.addProf(s, 'weapons', w); });
     cls.tools.forEach(function (t) { DND.addProf(s, 'tools', t); });
 
-    var sub = null;
-    var cp = cls.id + '.';
+    var taken = {}, order = [];
     for (var L = 1; L <= 20; L++) {
-      s.level = L;
-      var entries = [];
+      var cid = DND.classAt(build, L), c = DND.cls(cid);
+      if (!c) { c = cls; if (missing.indexOf('class') < 0) missing.push('class'); }
+      var tk = taken[c.id], first = !tk;
+      if (!tk) { tk = taken[c.id] = { cls: c, level: 0, sub: null }; order.push(tk); }
+      tk.level++;
+      var CL = tk.level, cp = c.id + '.';
+      s.level = CL; s.charLevel = L; s.curClassId = c.id;
+      s.hdList.push(c.hd);
+      var entries = [], mcIssues = [];
       if (L === 1) {
         entries.push(processFeature({
           name: 'Proficiencies',
-          desc: 'Saving throws: ' + (cls.saves.map(function (a) { return DND.ABILITY_NAMES[a]; }).join(', ') || 'none') +
-            '. Armor: ' + (cls.armor.length ? cls.armor.join(', ') : 'none') +
-            '. Weapons: ' + (cls.weapons.join(', ').replace('martial-light', 'martial (Light)').replace('martial-finesse-light', 'martial (Finesse or Light)') || 'none') +
-            (cls.tools.length ? '. Tools: ' + cls.tools.join(', ') : '') + '.',
-          choices: cls.skillCount ? [DND.skillChoice('skills', 'Class skills', cls.skillCount, cls.skillList, cls.name)] : []
+          desc: 'Saving throws: ' + (c.saves.map(function (a) { return DND.ABILITY_NAMES[a]; }).join(', ') || 'none') +
+            '. Armor: ' + (c.armor.length ? c.armor.join(', ') : 'none') +
+            '. Weapons: ' + (c.weapons.join(', ').replace('martial-light', 'martial (Light)').replace('martial-finesse-light', 'martial (Finesse or Light)') || 'none') +
+            (c.tools.length ? '. Tools: ' + c.tools.join(', ') : '') + '.',
+          choices: c.skillCount ? [DND.skillChoice('skills', 'Class skills', c.skillCount, c.skillList, c.name)] : []
         }, cp + 'L1.', s, build, 'Class'));
+      } else if (first) {
+        // Taking a new class: check both classes' requirements and grant multiclass proficiencies.
+        var mc = c.mc || { armor: c.armor.filter(function (a) { return a !== 'heavy'; }), weapons: [], tools: [] };
+        [c, cls].forEach(function (x) {
+          if (x.mc && x.mc.req && !meetsReq(s, x.mc.req)) mcIssues.push('Multiclassing ' + (x === c ? 'into ' : 'out of ') + x.name + ' needs ' + reqText(x.mc.req) + '.');
+        });
+        mcIssues.forEach(function (w) { s.warnings.push(w); });
+        (mc.armor || []).forEach(function (a) { DND.addProf(s, 'armor', a); });
+        (mc.weapons || []).forEach(function (w) { DND.addProf(s, 'weapons', w); });
+        (mc.tools || []).forEach(function (t) { DND.addProf(s, 'tools', t); });
+        entries.push(processFeature({
+          name: 'Multiclassing into ' + c.name,
+          desc: 'Requires ' + (reqText(c.mc && c.mc.req) || 'no minimum') + (cls.mc && cls.mc.req && c !== cls ? ' (and ' + reqText(cls.mc.req) + ' for ' + cls.name + ')' : '') +
+            '. Gain: ' + ([].concat((mc.armor || []).map(function (a) { return a === 'shield' ? 'Shields' : a + ' armor'; }), (mc.weapons || []).map(function (w) { return w + ' weapons'; }), mc.tools || []).join(', ') || 'no proficiencies') +
+            (mc.skills ? ', ' + mc.skills + ' skill' : '') + '. No saving throw proficiencies.',
+          choices: mc.skills ? [DND.skillChoice('skills', c.name + ' skill', mc.skills, mc.skillList || c.skillList, c.name)] : []
+        }, cp + 'MC.', s, build, 'Class'));
       }
-      (cls.features[L] || []).forEach(function (f) {
+      (c.features[CL] || []).forEach(function (f) {
         if (f.subclassSlot) {
-          var e = { name: cls.subclassLabel, desc: 'Choose your subclass. Its features are added at the levels shown.', source: 'Class', choices: [] };
-          runChoices([{ id: 'subclass', label: cls.subclassLabel, kind: 'one',
-            options: cls.subclasses.map(function (sc) { return { id: sc.id, label: sc.name, desc: sc.desc, group: sc.compendium ? 'From your compendium' : '' }; }),
+          var e = { name: c.subclassLabel, desc: 'Choose your subclass. Its features are added at the levels shown.', source: 'Class', choices: [] };
+          runChoices([{ id: 'subclass', label: c.subclassLabel, kind: 'one',
+            options: c.subclasses.map(function (sc) { return { id: sc.id, label: sc.name, desc: sc.desc, group: sc.compendium ? 'From your compendium' : '' }; }),
             apply: function (st, v) { st.subclass = v; } }], cp, s, build, e.choices);
           entries.push(e);
-          sub = find(cls.subclasses, s.subclass);
+          tk.sub = find(c.subclasses, s.subclass);
         } else {
-          entries.push(processFeature(f, cp + 'L' + L + '.', s, build, 'Class'));
+          entries.push(processFeature(f, cp + 'L' + CL + '.', s, build, 'Class'));
         }
       });
-      if (sub && sub.features[L]) {
-        sub.features[L].forEach(function (f) {
-          entries.push(processFeature(f, cp + 'L' + L + '.' + sub.id + '.', s, build, sub.name));
+      if (tk.sub && tk.sub.features[CL]) {
+        tk.sub.features[CL].forEach(function (f) {
+          entries.push(processFeature(f, cp + 'L' + CL + '.' + tk.sub.id + '.', s, build, tk.sub.name));
         });
       }
+      s.level = L;
 
-      // Snapshot for this level, with level-scaled effects applied to the copy.
+      // Snapshot for this level, with level-scaled effects applied to the copy (class effects use class levels).
       var snap = clone(s);
       if (species.derive) species.derive(snap);
-      if (cls.derive) cls.derive(snap);
-      if (sub && sub.derive) sub.derive(snap);
-      if (sub && sub.extraList) snap.spells.extraLists = (snap.spells.extraLists || []).concat(sub.extraList);
+      order.forEach(function (t) {
+        snap.level = t.level;
+        if (t.cls.derive) t.cls.derive(snap);
+        if (t.sub && t.sub.derive) t.sub.derive(snap);
+      });
+      snap.level = L;
       if (snap.lineageSpells) {
         DND.addAlways(snap, [snap.lineageSpells[0]], 'Lineage');
         if (L >= 3) DND.addAlways(snap, [snap.lineageSpells[1]], 'Lineage (1/Long Rest free)');
         if (L >= 5) DND.addAlways(snap, [snap.lineageSpells[2]], 'Lineage (1/Long Rest free)');
       }
-      var caster = (sub && sub.caster) || cls.caster || null;
-      var derived = compute(snap, build, cls, caster, sub);
+      var takenNow = order.map(function (t) { return { cls: t.cls, level: t.level, sub: t.sub }; });
+      var derived = compute(snap, build, cls, takenNow);
 
-      var issues = { missing: 0, problems: 0 };
+      var issues = { missing: 0, problems: mcIssues.length };
       entries.forEach(function (e) { var n = countIssues(e.choices); issues.missing += n.missing; issues.problems += n.problems; });
-      result.levels.push({ level: L, features: entries, state: snap, d: derived, issues: issues, subclass: sub, caster: caster });
+      result.levels.push({ level: L, cls: c, classLevel: CL, newClass: first && L > 1, mcIssues: mcIssues, features: entries, state: snap, d: derived, issues: issues,
+        subclass: tk.sub, caster: (tk.sub && tk.sub.caster) || c.caster || null, taken: takenNow });
     }
+    result.multiclass = order.length > 1;
+    // Name resource columns by class for the whole build once it has more than one class.
+    if (result.multiclass) result.levels.forEach(function (lv) { lv.d.columns.forEach(function (c) { c.label = c.cls + ': ' + c.label; }); });
 
     result.originIssues = { missing: 0, problems: result.abilityIssues.length };
     result.origin.forEach(function (o) { var n = countIssues(o.choices); result.originIssues.missing += n.missing; result.originIssues.problems += n.problems; });
@@ -457,23 +555,25 @@
 
   /* ---------- Spell picks (cantrips + prepared), checked at a given level ---------- */
 
-  DND.spellReport = function (build, ev, level) {
-    var lv = ev.levels[level - 1], d = lv.d.spell, c = lv.caster;
+  DND.spellReport = function (build, ev, level, clsId) {
+    var lv = ev.levels[level - 1];
+    var d = clsId ? lv.d.spellcasters.filter(function (e) { return e.clsId === clsId; })[0] : lv.d.spell;
     if (!d) return null;
+    var c = d.caster, picks = DND.spellsFor(build, d.clsId);
     var lists = d.lists;
     function onList(n, lvl) { return lists.some(function (l) { return ((DND.SPELL_LISTS[l] || [])[lvl] || []).indexOf(n) >= 0; }); }
-    var cantrips = (build.spells.cantrips || []).map(function (n, i) {
+    var cantrips = (picks.cantrips || []).map(function (n, i) {
       var ok = onList(n, 0);
       return { name: n, ok: ok && i < d.cantrips, note: !ok ? 'Not on your spell list' : i >= d.cantrips ? 'Over your cantrip limit at this level' : '' };
     });
     var count = 0;
-    var prepared = (build.spells.prepared || []).map(function (n) {
+    var prepared = (picks.prepared || []).map(function (n) {
       var sl = DND.SPELL_LEVEL[n];
       var ok = sl !== undefined && sl > 0 && lists.some(function (l) { return onList(n, sl); });
       var at = DND.levelForSpell(c, sl);
       var r = { name: n, level: sl, ok: false, note: '' };
       if (!ok) r.note = 'Not on your spell list';
-      else if (sl > d.maxLevel) r.note = at <= 20 ? 'Available at class level ' + at : 'Beyond your slots';
+      else if (sl > d.maxLevel) r.note = at <= 20 ? 'Available at ' + d.className + ' level ' + at : 'Beyond your slots';
       else if (count >= d.prepared) r.note = 'Over your prepared limit at this level';
       else { r.ok = true; count++; }
       return r;

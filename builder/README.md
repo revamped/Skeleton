@@ -8,6 +8,15 @@ Open `index.html` in a browser. It needs no build step or server, and builds are
 
 - **Build tab**: the origin (class, species, background, ability scores by standard array, point buy or manual) plus a card for each of the 20 levels. Each card lists that level's features and the choices to make there: skills, subclass, feats/ASIs, fighting styles, weapon masteries, expertise, invocations, metamagic, maneuvers, Mystic Arcanum and so on. Open choices are flagged in red, both on the card and on the level rail in the header.
 - **Level rail**: click any level (or press ← / →) to view the character at that point. Every choice can be changed at any time, and everything downstream updates.
+- **Multiclassing**: each level card has a **Class** button for choosing which class gains that level (just that level, or that level through 20). Levels you don't change follow the main class. The engine follows the 2024 multiclass rules:
+  - class features and choices use the class level, and proficiency bonus uses the total level
+  - hit points use each class's hit die
+  - saving throws come only from the first class, and a new class grants its limited multiclass proficiencies
+  - each class's ability requirement (13+) is checked
+  - spell slots combine across casters (full, half rounded up, third for Eldritch Knight/Arcane Trickster), with Pact Magic kept separate
+  - each casting class keeps its own spell DC, cantrips and prepared spells
+  - Extra Attack and Unarmored Defense don't stack
+  - imported classes read their requirements and proficiencies from the compendium's multiclass text
 - **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
 - **Gear tab**: armor, shield and weapons (including magic weapons and armor with their bonuses) plus an inventory. Equipped (and attuned) items apply their effects: AC, saving throws, spell attack/DC, speed, initiative, and items that set an ability score. Weight, carrying capacity and the three-item attunement limit are tracked.
 - **Spells tab**: cantrips and prepared spells checked against the viewed level. Click a spell for its full text. Spells you can't cast yet stay in your plan and show the level where they unlock. Optionally include 2014 spells from an imported compendium.
@@ -59,7 +68,7 @@ node tools/build-srd.js ./FightClub5eXML
 
 To add hand-built content (a new subclass, feat or species), add an entry to the data files. Each feature can declare `choices` (a select or multi-pick, with options that can carry their own sub-choices) and an `apply(state)` effect. The engine handles the rest.
 
-Not yet supported: multiclassing and per-level spell swapping.
+Not yet supported: per-level spell swapping.
 
 ## Credits and licenses
 

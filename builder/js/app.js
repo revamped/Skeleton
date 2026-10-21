@@ -136,15 +136,16 @@
 
     $('#rail').innerHTML = ev.levels.map(function (lv) {
       var L = lv.level, marks = [];
-      (ev.cls.features[L] || []).forEach(function (f) {
+      (lv.cls.features[lv.classLevel] || []).forEach(function (f) {
         if (f.subclassSlot) marks.push('sub');
         else if (f.name === 'Ability Score Improvement') marks.push('asi');
         else if (f.name === 'Epic Boon') marks.push('boon');
       });
       var mk = marks.indexOf('sub') >= 0 ? 'sub' : marks.indexOf('boon') >= 0 ? 'boon' : marks.indexOf('asi') >= 0 ? 'feat' : '';
+      if (ev.multiclass) mk = classBase(lv.cls.name).slice(0, 3) + (mk ? '·' + mk[0] : '');
       var todo = lv.issues.missing + lv.issues.problems > 0;
       var cls = [L < b.level ? 'reached' : '', L === b.level ? 'current' : '', todo ? 'todo' : ''].join(' ');
-      return '<li class="' + cls + '"><button type="button" data-level="' + L + '" title="Level ' + L + (todo ? ' — choices needed' : '') + '"' +
+      return '<li class="' + cls + (ev.multiclass && lv.cls.id !== b.classId ? ' other' : '') + '"><button type="button" data-level="' + L + '" title="Level ' + L + ': ' + esc(lv.cls.name) + ' ' + lv.classLevel + (todo ? ' — choices needed' : '') + '"' +
         (L === b.level ? ' aria-current="step"' : '') + '><span>' + L + '</span><span class="mk">' + mk + '</span></button></li>';
     }).join('');
 
@@ -399,11 +400,18 @@
     if (!lv.features.length) feats = '<div class="feature"><p class="desc">No new class features. Your Hit Points and proficiency still grow.</p></div>';
     var prev = L > 1 ? ev.levels[L - 2].d.hp : 0;
     return '<section class="' + cls + '" id="lvl-' + L + '">' +
-      '<div class="lvl-head"><div class="lvl-num">' + L + '</div><div class="lvl-title"><strong>' + esc(ev.cls.name) + ' ' + L + '</strong>' +
+      '<div class="lvl-head"><div class="lvl-num">' + L + '</div><div class="lvl-title"><strong>' + esc(lv.cls.name) + ' ' + lv.classLevel +
+      (ev.multiclass ? ' <span class="muted lvl-char">· character level ' + L + '</span>' : '') + '</strong>' +
       '<div class="lvl-stats"><span>PB ' + sign(lv.d.pb) + '</span><span>HP ' + lv.d.hp + (L > 1 ? ' (+' + (lv.d.hp - prev) + ')' : '') + '</span>' +
       lv.d.columns.map(function (c) { return '<span>' + esc(c.label) + ' ' + esc(c.value) + '</span>'; }).join('') + '</div></div>' + todo +
+      (lv.newClass ? '<span class="pill pill-gold">New class</span>' : '') +
+      (L > 1 ? '<button type="button" class="btn btn-small" data-openlist="levelclass" data-forlevel="' + L + '" title="Choose which class gains this level">Class: ' + esc(classBase(lv.cls.name)) + ' ▾</button>' : '') +
       (L !== b.level ? '<button type="button" class="btn btn-small" data-level="' + L + '">View level ' + L + '</button>' : '<span class="pill pill-gold">Viewing</span>') +
-      '</div><div class="feat-list">' + feats + '</div></section>';
+      '</div>' + (lv.mcIssues && lv.mcIssues.length ? '<ul class="warn-list mc-warn">' + lv.mcIssues.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul>' : '') +
+      '<div class="feat-list">' + feats + '</div></section>';
+  }
+  function classSplit(lv) {
+    return lv.d.classLevels.map(function (c) { return c.name + ' ' + c.level + (c.sub ? ' (' + c.sub + ')' : ''); }).join(' / ');
   }
 
   function renderBuild() {
@@ -415,6 +423,8 @@
       (totalTodo ? '<span class="pill pill-todo">' + totalTodo + ' choices open across 20 levels</span>' : '<span class="pill pill-ok">All 20 levels chosen</span>') +
       '<div class="seg" role="group" aria-label="Levels shown"><button type="button" data-showall="1" aria-pressed="' + app.showAll + '">All 20</button>' +
       '<button type="button" data-showall="0" aria-pressed="' + !app.showAll + '">Up to ' + b.level + '</button></div></div></div>' +
+      '<p class="desc mc-hint">' + (ev.multiclass ? '<b>Multiclass:</b> ' + esc(classSplit(ev.levels[b.level - 1])) + ' at level ' + b.level + ' · ' + esc(classSplit(ev.levels[19])) + ' at level 20. ' : '') +
+      'To multiclass, use <b>Class</b> on any level card to choose which class gains that level.</p>' +
       '<div class="timeline">' + levels.map(levelCard).join('') + '</div>';
   }
 
@@ -426,13 +436,15 @@
     var b = cur(), lv = ev.levels[b.level - 1], d = lv.d, s = lv.state, base = ev.levels[0].state;
     var vit = [['AC', d.ac], ['HP', d.hp], ['Speed', d.speed], ['Init', sign(d.init)], ['Prof', sign(d.pb)], ['Passive', d.passivePerception]];
     var html = '<section class="card"><div class="sum-head"><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
-      '<span class="muted">' + esc(ev.cls.name) + (subName(lv) ? ' · ' + esc(subName(lv)) : '') + ' · ' + esc(ev.background.name) + '</span></div>' +
+      '<span class="muted">' + esc(ev.multiclass ? classSplit(lv) : ev.cls.name + (subName(lv) ? ' · ' + subName(lv) : '')) + ' · ' + esc(ev.background.name) + '</span></div>' +
       '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' +
       '<div class="abil-row">' + D.ABILITIES.map(function (a) {
         return '<div class="abil' + (s.abilities[a] > base.abilities[a] ? ' raised' : '') + '" title="' + D.ABILITY_NAMES[a] + (d.saves[a].prof ? ', proficient save' : '') + '"><span class="eyebrow">' + a + '</span><b>' + s.abilities[a] + '</b><small>' + sign(d.mods[a]) + '</small></div>';
       }).join('') + '</div>';
     if (d.spell) {
-      html += '<div class="sum-section"><h3>Spellcasting</h3><div>Save DC <b>' + d.spell.dc + '</b> · Attack <b>' + sign(d.spell.attack) + '</b></div>' + slotsHtml(d.spell) + '</div>';
+      html += '<div class="sum-section"><h3>Spellcasting</h3>' + d.spellcasters.map(function (e) {
+        return '<div>' + (d.spellcasters.length > 1 ? esc(classBase(e.className)) + ': ' : '') + 'Save DC <b>' + e.dc + '</b> · Attack <b>' + sign(e.attack) + '</b></div>';
+      }).join('') + slotsHtml(d.spell) + '</div>';
     }
     var feats = s.feats.map(function (f) { return f.name; });
     html += '<div class="sum-section sum-detail"><h3>Feats</h3><div>' + (feats.length ? esc(feats.join(', ')) : '<span class="muted">None yet</span>') + '</div></div>';
@@ -442,8 +454,12 @@
   }
 
   function slotsHtml(sp) {
+    if (sp.pact && sp.slots && sp.slots.some(Boolean)) {
+      return '<div class="slots">' + sp.slots.map(function (n, i) { return n ? '<span class="slot">L' + (i + 1) + ' × ' + n + '</span>' : ''; }).join('') +
+        '<span class="slot">Pact: ' + sp.pact.count + ' × L' + sp.pact.level + '</span></div>';
+    }
     if (sp.pact) return '<div class="slots"><span class="slot">' + sp.pact.count + ' Pact slot' + (sp.pact.count > 1 ? 's' : '') + ' · level ' + sp.pact.level + '</span></div>';
-    return '<div class="slots">' + sp.slots.map(function (n, i) { return n ? '<span class="slot" title="Level ' + (i + 1) + ' slots">L' + (i + 1) + ' × ' + n + '</span>' : ''; }).join('') + '</div>';
+    return '<div class="slots">' + (sp.slots || []).map(function (n, i) { return n ? '<span class="slot" title="Level ' + (i + 1) + ' slots">L' + (i + 1) + ' × ' + n + '</span>' : ''; }).join('') + '</div>';
   }
 
   function renderSheet() {
@@ -468,9 +484,12 @@
 
     var resources = d.columns.length || d.spell ? '<section class="card"><div class="card-head"><h3>Class resources</h3></div><div class="card-body"><div class="rows">' +
       d.columns.map(function (c) { return '<div class="row"><span>' + esc(c.label) + '</span><span class="v">' + esc(c.value) + '</span></div>'; }).join('') +
-      (d.spell ? '<div class="row"><span>Spell save DC / attack</span><span class="v">' + d.spell.dc + ' / ' + sign(d.spell.attack) + '</span></div>' +
-        (d.spell.cantrips ? '<div class="row"><span>Cantrips known</span><span class="v">' + d.spell.cantrips + '</span></div>' : '') +
-        '<div class="row"><span>Prepared spells</span><span class="v">' + d.spell.prepared + '</span></div>' : '') + '</div>' +
+      (d.spellcasters || []).map(function (e) {
+        var pre = d.spellcasters.length > 1 ? esc(classBase(e.className)) + ': ' : '';
+        return '<div class="row"><span>' + pre + 'Spell save DC / attack</span><span class="v">' + e.dc + ' / ' + sign(e.attack) + '</span></div>' +
+          (e.cantrips ? '<div class="row"><span>' + pre + 'Cantrips known</span><span class="v">' + e.cantrips + '</span></div>' : '') +
+          '<div class="row"><span>' + pre + 'Prepared spells</span><span class="v">' + e.prepared + '</span></div>';
+      }).join('') + '</div>' +
       (d.spell ? slotsHtml(d.spell) : '') + '</div></section>' : '';
 
     // Features gained up to this level.
@@ -478,7 +497,7 @@
     ev.levels.slice(0, b.level).forEach(function (l) {
       l.features.forEach(function (f) {
         if (f.name === 'Proficiencies') return;
-        featureRefs.push('<div class="feature-ref"><b>' + esc(f.name) + ' <span class="muted">· ' + (f.source === 'Class' ? 'Level ' + l.level : esc(f.source) + ' ' + l.level) + '</span></b>' + summaryOfChoices(f) + (f.long ? longText(f.desc) : '<span>' + esc(f.desc) + '</span>') + '</div>');
+        featureRefs.push('<div class="feature-ref"><b>' + esc(f.name) + ' <span class="muted">· ' + (f.source === 'Class' ? (ev.multiclass ? esc(classBase(l.cls.name)) + ' ' + l.classLevel : 'Level ' + l.level) : esc(f.source) + ' ' + l.classLevel) + '</span></b>' + summaryOfChoices(f) + (f.long ? longText(f.desc) : '<span>' + esc(f.desc) + '</span>') + '</div>');
       });
     });
     var features = '<section class="card"><div class="card-head"><h3>Class features</h3></div><div class="card-body">' + featureRefs.join('') + '</div></section>';
@@ -526,26 +545,27 @@
   function renderSpells() {
     var b = cur(), lv = ev.levels[b.level - 1], s = lv.state;
     var always = s.spells.always;
-    var rep = D.spellReport(b, ev, b.level);
-    var html = '<div class="toolbar"><h2>Spells at level ' + b.level + '</h2></div>';
-    if (!rep && !always.length) {
+    var casters = lv.d.spellcasters || [];
+    var html = '<div class="toolbar"><h2>Spells at level ' + b.level + '</h2>' + (casters.length > 1 ? '<span class="muted">Shared slots: ' + (lv.d.casterLevel ? 'caster level ' + lv.d.casterLevel : '') + '</span>' : '') + '</div>';
+    if (!casters.length && !always.length) {
       return html + '<section class="card"><div class="card-body"><p>' + esc(ev.cls.name) + ' has no Spellcasting feature. Spells from your species, background, or feats appear here once you pick them (for example a Magic Initiate feat, or an Elf or Tiefling lineage).</p></div></section>';
     }
-    if (rep) {
-      var sp = rep.d;
-      html += '<section class="card"><div class="card-head"><h3>' + esc(ev.cls.name) + ' spellcasting</h3><span class="muted">' + D.ABILITY_NAMES[sp.ability] + ' · Save DC ' + sp.dc + ' · Attack ' + sign(sp.attack) +
+    casters.forEach(function (ce) {
+      var rep = D.spellReport(b, ev, b.level, ce.clsId);
+      var sp = rep.d, cid = esc(ce.clsId);
+      html += '<section class="card"><div class="card-head"><h3>' + esc(ce.className) + (casters.length > 1 ? ' ' + ce.classLevel : '') + ' spellcasting</h3><span class="muted">' + D.ABILITY_NAMES[sp.ability] + ' · Save DC ' + sp.dc + ' · Attack ' + sign(sp.attack) +
         ' · Lists: ' + sp.lists.map(listLabel).join(', ') + '</span></div><div class="card-body">' + slotsHtml(sp) +
-        (D.SPELL_LISTS[ev.cls.caster && ev.cls.caster.list + ':legacy'] ? '<label class="toggle"><input type="checkbox" id="opt-legacy"' + (b.options && b.options.legacySpells ? ' checked' : '') + '> Also offer 2014 spells for this class from your compendium</label>' : '');
+        (D.SPELL_LISTS[ce.caster.list + ':legacy'] ? '<label class="toggle"><input type="checkbox" id="opt-legacy"' + (b.options && b.options.legacySpells ? ' checked' : '') + '> Also offer 2014 spells for this class from your compendium</label>' : '');
       if (sp.cantrips) {
         html += '<div class="field"><div class="toolbar"><span class="label">Cantrips</span><span class="pill ' + (countOk(rep.cantrips) < sp.cantrips ? 'pill-todo' : 'pill-ok') + '">' + countOk(rep.cantrips) + ' / ' + sp.cantrips + '</span></div>' +
-          '<div class="chips">' + rep.cantrips.map(spellChip('cantrips')).join('') + '<button type="button" class="btn btn-small" data-spellpick="cantrips">Choose cantrips</button></div></div>';
+          '<div class="chips">' + rep.cantrips.map(spellChip('cantrips', ce.clsId)).join('') + '<button type="button" class="btn btn-small" data-spellpick="cantrips" data-cls="' + cid + '">Choose cantrips</button></div></div>';
       }
       html += '<div class="field"><div class="toolbar"><span class="label">Prepared spells (up to level ' + sp.maxLevel + ')</span><span class="pill ' + (rep.preparedCount < sp.prepared ? 'pill-todo' : 'pill-ok') + '">' + rep.preparedCount + ' / ' + sp.prepared + '</span></div>' +
         '<p class="desc">Plan ahead: spells you can\'t prepare yet stay in the list and show the class level where they unlock.</p>' +
         '<div class="spell-groups">' + groupByLevel(rep.prepared).map(function (g) {
-          return '<div class="spell-group"><h4>Level ' + g.level + '</h4><div class="chips">' + g.items.map(spellChip('prepared')).join('') + '</div></div>';
-        }).join('') + '</div><div><button type="button" class="btn btn-small btn-primary" data-spellpick="prepared">Choose prepared spells</button></div></div></div></section>';
-    }
+          return '<div class="spell-group"><h4>Level ' + g.level + '</h4><div class="chips">' + g.items.map(spellChip('prepared', ce.clsId)).join('') + '</div></div>';
+        }).join('') + '</div><div><button type="button" class="btn btn-small btn-primary" data-spellpick="prepared" data-cls="' + cid + '">Choose prepared spells</button></div></div></div></section>';
+    });
     if (always.length) {
       html += '<section class="card"><div class="card-head"><h3>Always prepared &amp; granted</h3><span class="muted">Don\'t count against your prepared total</span></div><div class="card-body"><div class="rows">' +
         always.map(function (a) {
@@ -569,10 +589,10 @@
     list.forEach(function (x) { var l = x.level || 0; (g[l] = g[l] || []).push(x); });
     return Object.keys(g).sort(function (a, b) { return a - b; }).map(function (l) { return { level: l, items: g[l] }; });
   }
-  function spellChip(kind) {
+  function spellChip(kind, clsId) {
     return function (x) {
       return '<span class="chip' + (x.ok ? '' : ' bad') + '" title="' + esc(x.note) + '">' + spellLink(x.name) + (x.note ? ' <small>· ' + esc(x.note) + '</small>' : '') +
-        '<button type="button" data-rmspell="' + kind + '" data-value="' + esc(x.name) + '" aria-label="Remove ' + esc(x.name) + '">×</button></span>';
+        '<button type="button" data-rmspell="' + kind + '" data-cls="' + esc(clsId || '') + '" data-value="' + esc(x.name) + '" aria-label="Remove ' + esc(x.name) + '">×</button></span>';
     };
   }
 
@@ -580,9 +600,11 @@
 
   function renderProgression() {
     var b = cur();
-    var cols = ev.cls.columns || [];
-    var hasSpells = !!ev.cls.caster;
-    var head = '<tr><th class="n">Lvl</th><th class="n">PB</th><th class="n">HP</th><th class="n">AC</th>' +
+    var cols = [];
+    ev.levels.forEach(function (lv) { lv.d.columns.forEach(function (c) { if (cols.indexOf(c.label) < 0) cols.push(c.label); }); });
+    cols = cols.map(function (l) { return { label: l }; });
+    var hasSpells = ev.levels.some(function (lv) { return lv.d.spell; });
+    var head = '<tr><th class="n">Lvl</th>' + (ev.multiclass ? '<th>Class</th>' : '') + '<th class="n">PB</th><th class="n">HP</th><th class="n">AC</th>' +
       D.ABILITIES.map(function (a) { return '<th class="n">' + abbr(a) + '</th>'; }).join('') +
       '<th>Features gained (your choices in green)</th>' + cols.map(function (c) { return '<th class="n">' + esc(c.label) + '</th>'; }).join('') +
       (hasSpells ? '<th class="n">Cantrips</th><th class="n">Prepared</th><th>Spell slots</th>' : '') + '</tr>';
@@ -594,15 +616,19 @@
         return esc(f.name) + (chosen ? ' <span class="chosen">(' + chosen.replace(/^<span[^>]*>|<\/span>$/g, '') + ')</span>' : '') + (todo ? ' <span class="pill pill-todo">choose</span>' : '');
       }).join('; ') || '<span class="muted">—</span>';
       var sp = d.spell;
-      return '<tr data-level="' + L + '" class="' + (L === b.level ? 'current' : L > b.level ? 'ahead' : '') + '"><td class="n"><b>' + L + '</b></td><td class="n">' + sign(d.pb) + '</td><td class="n">' + d.hp + '</td><td class="n">' + d.ac + '</td>' +
+      var many = d.spellcasters && d.spellcasters.length > 1;
+      return '<tr data-level="' + L + '" class="' + (L === b.level ? 'current' : L > b.level ? 'ahead' : '') + '"><td class="n"><b>' + L + '</b></td>' +
+        (ev.multiclass ? '<td>' + esc(classBase(lv.cls.name)) + ' ' + lv.classLevel + '</td>' : '') + '<td class="n">' + sign(d.pb) + '</td><td class="n">' + d.hp + '</td><td class="n">' + d.ac + '</td>' +
         D.ABILITIES.map(function (a) {
           var v = lv.state.abilities[a], up = prev && v > prev[a];
           return '<td class="n"' + (up ? ' style="color:var(--gold);font-weight:700"' : '') + '>' + v + '</td>';
         }).join('') +
-        '<td class="feats">' + feats + '</td>' + d.columns.map(function (c) { return '<td class="n">' + esc(c.value) + '</td>'; }).join('') +
-        (hasSpells ? '<td class="n">' + (sp.cantrips || '—') + '</td><td class="n">' + sp.prepared + '</td><td>' + (sp.pact ? sp.pact.count + ' × L' + sp.pact.level : sp.slots.join(' · ')) + '</td>' : '') + '</tr>';
+        '<td class="feats">' + feats + '</td>' + cols.map(function (c) { var v = d.columns.filter(function (x) { return x.label === c.label; })[0]; return '<td class="n">' + esc(v ? v.value : '—') + '</td>'; }).join('') +
+        (hasSpells ? (sp ? '<td class="n">' + (many ? d.spellcasters.map(function (e) { return classBase(e.className)[0] + ' ' + e.cantrips; }).join(' / ') : sp.cantrips || '—') + '</td>' +
+          '<td class="n">' + (many ? d.spellcasters.map(function (e) { return classBase(e.className)[0] + ' ' + e.prepared; }).join(' / ') : sp.prepared) + '</td>' +
+          '<td>' + [sp.slots && sp.slots.filter(Boolean).length ? sp.slots.join(' · ') : '', sp.pact ? 'Pact ' + sp.pact.count + ' × L' + sp.pact.level : ''].filter(Boolean).join(' + ') + '</td>' : '<td class="n">—</td><td class="n">—</td><td>—</td>') : '') + '</tr>';
     }).join('');
-    return '<div class="toolbar"><h2>All 20 levels at a glance</h2><span class="muted">' + esc(ev.cls.name) + ' · click a row to view that level</span></div>' +
+    return '<div class="toolbar"><h2>All 20 levels at a glance</h2><span class="muted">' + esc(ev.multiclass ? classSplit(ev.levels[19]) : ev.cls.name) + ' · click a row to view that level</span></div>' +
       '<div class="table-wrap prog"><table><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>';
   }
 
@@ -710,9 +736,13 @@
       html = '<div class="dialog dialog-detail" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">' + esc(m.title) + '</h3><span class="muted">' + esc(m.sub || '') + '</span></div>' +
         '<div class="dialog-tools"></div><div class="dialog-list detail-body" id="dlg-list">' + m.html + '</div><div class="dialog-foot">' + (m.foot || '') + '<button type="button" class="btn btn-primary" data-close="1">Close</button></div></div>';
     } else {
-      var b = cur(), lv = ev.levels[b.level - 1], sp = lv.d.spell, c = lv.caster;
-      var picked = b.spells[m.kind] || [];
-      var lists = (ev.levels[19].d.spell || sp).lists.slice();
+      var b = cur(), lv = ev.levels[b.level - 1];
+      function forCls(l) { return (l.d.spellcasters || []).filter(function (e) { return !m.cls || e.clsId === m.cls; })[0]; }
+      var sp = forCls(lv) || forCls(ev.levels[19]);
+      if (!sp) return closeModal();
+      var c = sp.caster;
+      var picked = D.spellsFor(b, sp.clsId)[m.kind] || [];
+      var lists = (forCls(ev.levels[19]) || sp).lists.slice();
       (lv.state.spells.extraLists || []).forEach(function (l) { if (lists.indexOf(l) < 0) lists.push(l); });
       var opts = m.kind === 'cantrips' ? D.spellOptions(lists, 0, 0) : D.spellOptions(lists, 1, 9);
       var q2 = m.q.toLowerCase(), lg = null;
@@ -838,15 +868,16 @@
     var b = cur(), lv = ev.levels[b.level - 1], st = lv.state, out = [];
     var names = st.spells.always.map(function (a) { return a.name; }).concat(b.spells.prepared || [], b.spells.cantrips || []);
     if (st.invocations.indexOf('pact-chain') >= 0) names.push('Pact of the Chain', 'Find Familiar');
-    if (lv.subclass && /Beast Master/.test(lv.subclass.name)) names.push('Beast Master');
+    if (lv.d.classLevels.some(function (x) { return x.sub && /Beast Master/.test(x.sub); })) names.push('Beast Master');
     Object.keys(SUMMON_NAMES).forEach(function (k) {
       if (names.indexOf(k) < 0) return;
       var role = k === 'Find Familiar' || k === 'Pact of the Chain' ? 'Familiar' : k === 'Find Steed' ? 'Steed' : k === 'Beast Master' ? 'Beast companion' : /Dead|Undead/.test(k) ? 'Minion' : 'Summon';
       SUMMON_NAMES[k].forEach(function (n) { var m = monsterByName(n); if (m) out.push({ m: m, role: role, why: k }); });
     });
-    if (ev.cls.id === 'druid' && b.level >= 2) {
-      var maxCr = b.level >= 8 ? 1 : b.level >= 4 ? 0.5 : 0.25;
-      (D.MONSTERS || []).filter(function (m) { return /^beast$/i.test(m.type) && D.crValue(m.cr) <= maxCr && (b.level >= 8 || !/fly/i.test(m.speed)); })
+    var druidLv = (lv.d.classLevels.filter(function (x) { return x.id === 'druid'; })[0] || { level: 0 }).level;
+    if (druidLv >= 2) {
+      var maxCr = druidLv >= 8 ? 1 : druidLv >= 4 ? 0.5 : 0.25;
+      (D.MONSTERS || []).filter(function (m) { return /^beast$/i.test(m.type) && D.crValue(m.cr) <= maxCr && (druidLv >= 8 || !/fly/i.test(m.speed)); })
         .sort(function (a, c) { return D.crValue(c.cr) - D.crValue(a.cr) || a.name.localeCompare(c.name); })
         .slice(0, 24).forEach(function (m) { out.push({ m: m, role: 'Wild Shape form', why: 'Wild Shape (CR ' + (maxCr === 0.25 ? '1/4' : maxCr === 0.5 ? '1/2' : '1') + ')' }); });
     }
@@ -978,6 +1009,23 @@
         { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
         sourceFilter(opts)] };
     }
+    if (kind === 'levelclass') {
+      var Lf = app.modal.forLevel, main = D.cls(b.classId), st = ev.levels[Lf - 1] ? ev.levels[Lf - 2].state : null;
+      var curCls = (b.plan && b.plan[Lf - 1]) || '__main';
+      opts = [{ id: '__main', label: 'Main class (' + (main ? main.name : '') + ')', group: 'Main class', order: -1, meta: 'Levels you don\'t change follow your main class', search: 'main', facets: {} }]
+        .concat(D.CLASSES.map(function (x) {
+          var req = x.mc && x.mc.req, list = req ? (req.any || req.all) : [];
+          var ok = !req || !st || (req.any ? list.some(function (a) { return st.abilities[a] >= 13; }) : list.every(function (a) { return st.abilities[a] >= 13; }));
+          return { id: x.id, label: x.name, group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2,
+            meta: 'd' + x.hd + (req ? ' · needs ' + list.map(function (a) { return a.toUpperCase(); }).join(req.any ? ' or ' : ' + ') + ' 13' + (ok ? '' : ' (not met)') : '') + (x.caster ? ' · spellcaster' : ''),
+            search: (x.name + ' ' + (x.src || '')).toLowerCase(), facets: { rules: rulesGroup(x), src: x.src || 'SRD 5.2', ok: ok ? 'yes' : 'no' } };
+        }).sort(function (a, c) { return a.order - c.order || (a.order ? a.label.localeCompare(c.label) : 0); }));
+      if (!app.modal.f.apply) app.modal.f.apply = 'one';
+      return { title: 'Class for level ' + Lf, current: curCls === b.classId ? '__main' : curCls, options: opts, filters: [
+        { id: 'apply', label: 'Apply to', noAny: true, values: [['one', 'Level ' + Lf + ' only'], ['rest', 'Levels ' + Lf + '–20']], test: function () { return true; } },
+        { id: 'ok', label: 'Requirements', values: [['yes', 'Meets ability requirements']], test: function (o, v) { return o.id === '__main' || o.facets.ok === v; } },
+        { id: 'rules', label: 'Rules', values: facetValues(opts.slice(1), 'rules') }] };
+    }
     if (kind === 'class') {
       var cg = speciesGroups('class');
       opts = cg.order.map(function (k) {
@@ -1063,6 +1111,11 @@
   function pickFromList(kind, id) {
     var b = cur();
     if (kind === 'weapon') { b.gear.weapons = (b.gear.weapons || []).concat(id); }
+    if (kind === 'levelclass') {
+      var Lp = app.modal.forLevel, until = app.modal.f.apply === 'rest' ? 20 : Lp;
+      b.plan = b.plan && b.plan.length === 20 ? b.plan : Array(20).fill(null);
+      for (var li = Lp; li <= until; li++) b.plan[li - 1] = id === '__main' || id === b.classId ? null : id;
+    }
     if (kind === 'armor') b.gear.armor = id;
     if (kind === 'shield') b.gear.shield = id === 'none' ? false : id;
     if (kind === 'class') {
@@ -1281,9 +1334,10 @@
       var vals = (b.choices[t.dataset.remove] || []).filter(function (v) { return v !== t.dataset.value; });
       setChoice(t.dataset.remove, vals); return;
     }
-    if (t.dataset.spellpick) { openSpellPicker(t.dataset.spellpick); return; }
+    if (t.dataset.spellpick) { openModal({ type: 'spells', kind: t.dataset.spellpick, cls: t.dataset.cls || '' }); return; }
     if (t.dataset.rmspell) {
-      b.spells[t.dataset.rmspell] = b.spells[t.dataset.rmspell].filter(function (n) { return n !== t.dataset.value; });
+      var pk = D.spellsFor(b, t.dataset.cls || b.classId);
+      pk[t.dataset.rmspell] = (pk[t.dataset.rmspell] || []).filter(function (n) { return n !== t.dataset.value; });
       commit(); return;
     }
     if (t.dataset.rmweapon) {
@@ -1291,7 +1345,7 @@
       commit(); return;
     }
     if (t.dataset.close) { closeModal(); return; }
-    if (t.dataset.openlist) { openList(t.dataset.openlist); return; }
+    if (t.dataset.openlist) { openModal({ type: 'list', kind: t.dataset.openlist, forLevel: +t.dataset.forlevel || 0 }); return; }
     if (t.dataset.mmore) { app.modal.limit += 150; renderModal(); return; }
     if (t.dataset.mclear) { app.modal.f = {}; app.modal.limit = 150; renderModal(); return; }
     if (t.dataset.pickone) { var rk = app.modal.key; closeModal(); setChoice(rk, t.dataset.pickone); return; }
@@ -1406,9 +1460,9 @@
       return;
     }
     if (t.dataset.spelltoggle) {
-      var k = app.modal.kind, list = (b.spells[k] || []).slice(), n = t.dataset.spelltoggle;
+      var k = app.modal.kind, picks = D.spellsFor(b, app.modal.cls || b.classId), list = (picks[k] || []).slice(), n = t.dataset.spelltoggle;
       if (t.checked) { if (list.indexOf(n) < 0) list.push(n); } else list = list.filter(function (x) { return x !== n; });
-      b.spells[k] = list; commit(); return;
+      picks[k] = list; commit(); return;
     }
   }
 

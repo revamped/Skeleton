@@ -415,9 +415,29 @@
       options: opts.map(function (o) { return { id: slug(o.name), label: o.name, desc: o.text }; }) };
   }
 
+  // Multiclass requirements and proficiencies from "Multiclass X" / "Becoming a X As A Multiclass Character".
+  function parseMulticlass(text) {
+    if (!text) return null;
+    var mc = { req: null, armor: [], weapons: [], tools: [], skills: 0, skillList: null };
+    var reqSeg = (/Primary Ability:\s*([^\n]+)/i.exec(text) || /Ability Score Minimum[\s\S]*?(?=Proficienc|$)/i.exec(text) || [''])[0];
+    var abs = [];
+    (reqSeg.match(/\b(Str|Dex|Con|Int|Wis|Cha)[a-z]*/gi) || []).forEach(function (w) { var a = w.slice(0, 3).toLowerCase(); if (DND.ABILITIES.indexOf(a) >= 0 && abs.indexOf(a) < 0) abs.push(a); });
+    if (abs.length) mc.req = /\bor\b/i.test(reqSeg) ? { any: abs } : { all: abs };
+    var armor = /Armor(?: Training)?:\s*([^\n]+)/i.exec(text);
+    if (armor) ['light', 'medium', 'heavy'].forEach(function (k) { if (new RegExp(k, 'i').test(armor[1])) mc.armor.push(k); });
+    if (armor && /shield/i.test(armor[1])) mc.armor.push('shield');
+    var weapons = /Weapon(?:s| Proficiencies)?:\s*([^\n]+)/i.exec(text);
+    if (weapons) { if (/simple/i.test(weapons[1])) mc.weapons.push('simple'); if (/martial/i.test(weapons[1])) mc.weapons.push('martial'); }
+    var tools = /Tools?(?: Proficienc(?:y|ies))?:\s*([^\n]+)/i.exec(text);
+    if (tools && !/^\s*none/i.test(tools[1])) mc.tools.push(tools[1].replace(/\.$/, '').trim());
+    var skills = /Skill(?:s| Proficiencies)?:\s*Choose (\d|one|two|three)\b:?\s*([^\n]*)/i.exec(text);
+    if (skills) { mc.skills = +skills[1] || NUM[lc(skills[1])] || 1; var pool = skillsInPhrase(skills[2]); mc.skillList = pool.length ? pool : null; }
+    return mc;
+  }
+
   // Convert a compendium class into the engine's class shape. Returns { cls, subclasses }.
   function convertClass(c, builtin) {
-    var lv = {}, slots = {}, slotsOpt = {}, known = {}, counters = {}, asi = {}, optCounters = [];
+    var lv = {}, slots = {}, slotsOpt = {}, known = {}, counters = {}, asi = {}, optCounters = [], mcText = '';
     function L(n) { return lv[n] = lv[n] || { core: [], opt: [] }; }
     c.auto.forEach(function (a) {
       if (a.slots) (a.slotsOpt ? slotsOpt : slots)[a.lv] = a.slots;
@@ -430,6 +450,7 @@
       a.features.forEach(function (f) {
         var o = { name: stripLevel(f.name), text: f.text, raw: f.name };
         if (/Ability Score Improvement/i.test(o.name) && a.asi) asi[a.lv] = true;
+        if (/multiclass/i.test(o.name)) mcText = f.text;
         if (/^(Becoming|Starting|Multiclass)\b/i.test(o.name)) return;
         (f.opt ? L(a.lv).opt : L(a.lv).core).push(o);
       });
@@ -547,8 +568,11 @@
       var maxAt20 = 0;
       slotRows[19].forEach(function (x, i) { if (x) maxAt20 = i + 1; });
       var hasKnown = Object.keys(known).length > 0;
+      // Pact-style tables have a single slot level per row (e.g. the 2014 warlock).
+      var pactLike = slotRows.every(function (r) { return r.filter(function (x) { return x; }).length <= 1; }) && maxAt20 >= 5;
       return { type: 'table', ability: ABIL_BY_NAME[lc(ability)] || 'int', list: list, cantrips: cantrips, slots: slotRows,
-        prepared: hasKnown ? fill20(known, 0) : null, preparedFormula: maxAt20 <= 5 ? 'half' : 'full' };
+        prepared: hasKnown ? fill20(known, 0) : null, preparedFormula: maxAt20 <= 5 ? 'half' : 'full',
+        mcKind: pactLike ? 'pact' : maxAt20 >= 9 ? 'full' : maxAt20 >= 5 ? 'half' : 'third' };
     }
     var listKey = 'cs-' + ed + '-' + slug(c.name);
     var classList = listFromClassSpells(ed + '|' + c.name + '|');
@@ -604,6 +628,7 @@
       return w;
     }).filter(function (w) { return w && w !== 'none'; });
     var cls = {
+      mc: parseMulticlass(mcText),
       id: idFor('cx-', c), name: edName('class', c), compendium: true, ed: ed, src: c.src,
       hd: c.hd, primary: c.spellAbility ? c.spellAbility + ' (spellcasting)' : 'See class description',
       saves: saves.slice(0, 2), skillCount: c.numSkills, skillList: skillList.length ? skillList : null,
