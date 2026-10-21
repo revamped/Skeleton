@@ -125,7 +125,7 @@
     var b = cur();
     $('#build-select').innerHTML = app.builds.map(function (x) {
       var c = D.cls(x.classId);
-      return '<option value="' + esc(x.id) + '"' + (x.id === b.id ? ' selected' : '') + '>' + esc(x.name || 'Unnamed') + ' · ' + esc(c ? c.name : '') + ' ' + x.level + '</option>';
+      return '<option value="' + esc(x.id) + '"' + (x.id === b.id ? ' selected' : '') + '>' + esc(x.name || 'Unnamed') + ' · ' + esc(c ? c.name : '') + ' ' + x.level + (D.rulesetOf(x) === 'legacy' ? ' · Legacy' : '') + '</option>';
     }).join('');
     var nameEl = $('#build-name');
     if (document.activeElement !== nameEl) nameEl.value = b.name || '';
@@ -225,10 +225,15 @@
   function backgroundBase(name) { return name.replace(/^Baldur's Gate /, '').split(/ \(|, /)[0].trim(); }
   function classBase(name) { return name.split(' (')[0].trim(); }
   function baseOf(kind, name) { return kind === 'background' ? backgroundBase(name) : kind === 'class' ? classBase(name) : speciesBase(name); }
+  // Classes, species or backgrounds this character's ruleset allows.
+  function pool(kind) {
+    var rs = ev ? ev.ruleset : '2024';
+    return (kind === 'background' ? D.BACKGROUNDS : kind === 'class' ? D.CLASSES : D.SPECIES).filter(function (x) { return D.allowedIn(x, rs); });
+  }
   function speciesGroups(kind) {
     kind = kind || 'species';
     var groups = {}, order = [];
-    (kind === 'background' ? D.BACKGROUNDS : kind === 'class' ? D.CLASSES : D.SPECIES).forEach(function (sp) {
+    pool(kind).forEach(function (sp) {
       var base = baseOf(kind, sp.name), key = base.toLowerCase();
       if (!groups[key]) { groups[key] = { key: key, name: base, list: [] }; order.push(key); }
       groups[key].list.push(sp);
@@ -370,11 +375,11 @@
       (n.missing ? '<span class="pill pill-todo">' + n.missing + ' to choose</span>' : '<span class="pill pill-ok">complete</span>') +
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
-      pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; },
+      pickerField('f-class', 'Class', 'class', pool('class'), b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; },
         { title: classBase(ev.cls.name), icon: D.classIcon(ev.cls), count: speciesGroups('class').order.length, after: classVersionField() + classSubField() }) +
-      pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
+      pickerField('f-species', 'Species', 'species', pool('species'), b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
         { title: speciesBase(ev.species.name), icon: D.speciesIcon(speciesBase(ev.species.name)), count: speciesGroups().order.length, after: subspeciesField() }) +
-      pickerField('f-bg', 'Background', 'background', D.BACKGROUNDS, b.backgroundId, function (g) {
+      pickerField('f-bg', 'Background', 'background', pool('background'), b.backgroundId, function (g) {
         if (g.custom) return 'Any three abilities, Origin feat, two skills';
         if (g.legacy) return '2014 background: skills ' + (g.skills.map(function (k) { return D.SKILLS[k].name; }).join(', ') || '—');
         return 'Abilities: ' + g.abilities.map(abbr).join(', ') + ' · Feat: ' + g.featName;
@@ -423,11 +428,18 @@
     return lv.d.classLevels.map(function (c) { return c.name + ' ' + c.level + (c.sub ? ' (' + c.sub + ')' : ''); }).join(' / ');
   }
 
+  function rulesetBar() {
+    if (ev.ruleset === 'legacy') {
+      return '<div class="ruleset-bar legacy"><span class="pill pill-gold">Legacy content</span><span>2014 classes, species, backgrounds, feats and spells are allowed alongside the 2024 rules.</span>' +
+        '<button type="button" class="btn btn-small" data-upgrade="open">Upgrade to 2024 rules…</button></div>';
+    }
+    return '<div class="ruleset-bar"><span class="pill pill-ok">2024 rules</span><span class="muted">Legacy (2014) content is hidden for this character. To use it, create a new character with Legacy content turned on.</span></div>';
+  }
   function renderBuild() {
     var b = cur();
     var levels = ev.levels.filter(function (lv) { return app.showAll || lv.level <= b.level; });
     var totalTodo = ev.levels.reduce(function (n, l) { return n + l.issues.missing; }, 0);
-    return renderOrigin() +
+    return rulesetBar() + renderOrigin() +
       '<div class="toolbar"><h2>Level by level</h2><div class="chips">' +
       (totalTodo ? '<span class="pill pill-todo">' + totalTodo + ' choices open across 20 levels</span>' : '<span class="pill pill-ok">All 20 levels chosen</span>') +
       '<div class="seg" role="group" aria-label="Levels shown"><button type="button" data-showall="1" aria-pressed="' + app.showAll + '">All 20</button>' +
@@ -445,9 +457,9 @@
     var b = cur(), lv = ev.levels[b.level - 1], d = lv.d, s = lv.state, base = ev.levels[0].state;
     var vit = [['AC', d.ac], ['HP', d.hp], ['Speed', d.speed], ['Init', sign(d.init)], ['Prof', sign(d.pb)], ['Passive', d.passivePerception]];
     var html = '<section class="card"><div class="sum-head"><div class="sum-icons">' + lv.d.classLevels.map(function (c) { return badge(D.classIcon(D.cls(c.id) || { name: c.name })); }).join('') +
-      badge(D.speciesIcon(speciesBase(ev.species.name))) + badge(D.backgroundIcon(ev.background.name)) + '</div><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
+      badge(D.speciesIcon(speciesBase(ev.species.name))) + badge(D.backgroundIcon(ev.background.name)) + '</div><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + (ev.ruleset === 'legacy' ? ' · Legacy' : '') + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
       '<span class="muted">' + esc(ev.multiclass ? classSplit(lv) : ev.cls.name + (subName(lv) ? ' · ' + subName(lv) : '')) + ' · ' + esc(ev.background.name) + '</span></div>' +
-      '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' +
+      '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' + summaryGear(b) +
       '<div class="abil-row">' + D.ABILITIES.map(function (a) {
         return '<div class="abil' + (s.abilities[a] > base.abilities[a] ? ' raised' : '') + '" title="' + D.ABILITY_NAMES[a] + (d.saves[a].prof ? ', proficient save' : '') + '">' + ico(D.abilityIcon(a), 'abil-ico') + '<span class="eyebrow">' + a + '</span><b>' + s.abilities[a] + '</b><small>' + sign(d.mods[a]) + '</small></div>';
       }).join('') + '</div>';
@@ -461,6 +473,14 @@
     if (s.warnings.length) html += '<div class="sum-section"><ul class="warn-list">' + s.warnings.map(function (w) { return '<li>' + esc(w) + '</li>'; }).join('') + '</ul></div>';
     html += '</section>';
     return html;
+  }
+
+  // Worn armor and shield, with their icons.
+  function summaryGear(b) {
+    var gear = b.gear || {}, a = find(D.ARMOR, gear.armor) || D.ARMOR[0];
+    var shId = gear.shield === true ? 'shield' : gear.shield || '', sh = shId && find(D.SHIELDS || [], shId);
+    return '<div class="sum-gear"><span title="Armor">' + ico(D.armorIcon(a)) + esc(a.ac ? a.name : 'No armor') + '</span>' +
+      '<span title="Shield"' + (shId ? '' : ' class="muted"') + '>' + ico(shId ? 'shield' : 'noArmor') + esc(sh ? sh.name : shId ? 'Shield' : 'No shield') + '</span></div>';
   }
 
   function slotsHtml(sp) {
@@ -603,7 +623,7 @@
       var cAdd = ch.cantripsAdded || [], pAdd = ch.preparedAdded || [];
       html += '<section class="card"><div class="card-head"><h3>' + esc(ce.className) + (casters.length > 1 ? ' ' + ce.classLevel : '') + ' spellcasting</h3><span class="muted">' + D.ABILITY_NAMES[sp.ability] + ' · Save DC ' + sp.dc + ' · Attack ' + sign(sp.attack) +
         ' · Lists: ' + sp.lists.map(listLabel).join(', ') + '</span></div><div class="card-body">' + slotsHtml(sp) +
-        (D.SPELL_LISTS[ce.caster.list + ':legacy'] ? '<label class="toggle"><input type="checkbox" id="opt-legacy"' + (b.options && b.options.legacySpells ? ' checked' : '') + '> Also offer 2014 spells for this class from your compendium</label>' : '');
+        (ev.ruleset === 'legacy' && D.SPELL_LISTS[ce.caster.list + ':legacy'] ? '<label class="toggle"><input type="checkbox" id="opt-legacy"' + (b.options && b.options.legacySpells ? ' checked' : '') + '> Also offer 2014 spells for this class from your compendium</label>' : '');
       if (sp.cantrips) {
         html += '<div class="field"><div class="toolbar"><span class="label">Cantrips</span><span class="pill ' + (countOk(rep.cantrips) < sp.cantrips ? 'pill-todo' : 'pill-ok') + '">' + countOk(rep.cantrips) + ' / ' + sp.cantrips + '</span></div>' +
           '<div class="chips">' + rep.cantrips.map(spellChip('cantrips', ce.clsId, CL, cAdd)).join('') + '<button type="button" class="btn btn-small" data-spellpick="cantrips" data-cls="' + cid + '">Choose cantrips</button></div></div>';
@@ -823,7 +843,7 @@
       html = modalShell(src.title, hits.length.toLocaleString() + ' of ' + src.options.length.toLocaleString(), list3, '', src.filters);
     } else if (m.type === 'detail') {
       html = '<div class="dialog dialog-detail" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">' + esc(m.title) + '</h3><span class="muted">' + esc(m.sub || '') + '</span></div>' +
-        '<div class="dialog-tools"></div><div class="dialog-list detail-body" id="dlg-list">' + m.html + '</div><div class="dialog-foot">' + (m.foot || '') + '<button type="button" class="btn btn-primary" data-close="1">Close</button></div></div>';
+        '<div class="dialog-tools"></div><div class="dialog-list detail-body" id="dlg-list">' + m.html + '</div><div class="dialog-foot">' + (m.foot || '') + '<button type="button" class="btn' + (m.closeLabel ? '' : ' btn-primary') + '" data-close="1">' + (m.closeLabel || 'Close') + '</button></div></div>';
     } else {
       var b = cur(), lv = ev.levels[b.level - 1];
       function forCls(l) { return (l.d.spellcasters || []).filter(function (e) { return !m.cls || e.clsId === m.cls; })[0]; }
@@ -871,6 +891,47 @@
   function snip(text, n) { text = String(text || '').replace(/\s+/g, ' ').trim(); return text.length > n ? text.slice(0, n - 1) + '…' : text; }
   function spellMeta(sp) {
     return (sp.level ? 'Level ' + sp.level : 'Cantrip') + ' ' + (D.SCHOOL[sp.school] || sp.school || '') + (sp.ritual ? ' (ritual)' : '') + ' · ' + sp.time + ' · ' + sp.range + ' · ' + sp.dur;
+  }
+
+  var LEGACY_WARNING = 'Legacy content adds 2014 classes, species, backgrounds, feats and spells from your compendium to the 2024 rules. ' +
+    'Some 2014 options don\'t follow 2024 rules exactly (for example, 2014 species and backgrounds both raise ability scores). ' +
+    'This choice is locked for the character: a 2024 character can\'t switch to Legacy later, so you\'d create a new character instead. ' +
+    'A Legacy character can be upgraded to the 2024 rules at any time.';
+  function openNewCharacter() {
+    var nLegacy = D.CLASSES.concat(D.SPECIES, D.BACKGROUNDS, D.FEATS).filter(D.isLegacy).length;
+    app.modal = { type: 'detail', title: 'New character', sub: 'Choose the rules this character uses',
+      html: '<div class="field"><label for="nc-name">Character name</label><input id="nc-name" type="text" maxlength="60" value="Hero ' + (app.builds.length + 1) + '"></div>' +
+        '<label class="toggle"><input type="checkbox" id="nc-legacy"> Use Legacy content (2014)</label>' +
+        '<div class="legacy-warn" id="nc-warn" hidden><b>Before you turn this on</b><p>' + esc(LEGACY_WARNING) + '</p>' +
+        (nLegacy ? '' : '<p><b>No 2014 content is loaded yet.</b> Import a compendium in Library to get legacy options.</p>') + '</div>' +
+        '<p class="desc" id="nc-note">The character uses the 2024 rules. Legacy content stays hidden, and this can\'t be changed later.</p>',
+      foot: '<button type="button" class="btn btn-primary" data-newchar="1">Create character</button>', closeLabel: 'Cancel' };
+    renderModal();
+    var nm = $('#nc-name'); if (nm) { nm.focus(); nm.select(); }
+  }
+  function openUpgrade() {
+    var plan = D.planUpgrade(cur());
+    function row(c) { return '<div class="row"><span><b>' + esc(c.kind) + '</b> ' + esc(c.from) + '</span><span class="muted" style="text-align:right">→ ' + esc(c.to) + '</span></div>'; }
+    app.modal = { type: 'detail', title: 'Upgrade to 2024 rules', sub: 'Legacy → 2024',
+      html: '<p>Legacy picks are swapped for their 2024 versions, and every level\'s features are rebuilt with the 2024 rules. Choices that don\'t exist in 2024 are cleared so you can choose again. ' +
+        '<b>This can\'t be undone</b>, and the character can\'t go back to Legacy content. Use <b>Upgrade a copy</b> to keep the original.</p>' +
+        (plan.changes.length ? '<h4>Swapped for 2024 versions</h4><div class="rows">' + plan.changes.map(row).join('') + '</div>' : '') +
+        (plan.unresolved.length ? '<h4>No 2024 version · choose again after upgrading</h4><div class="rows">' + plan.unresolved.map(function (u) {
+          return '<div class="row"><span><b>' + esc(u.kind) + '</b> ' + esc(u.name) + '</span><span class="pill pill-todo">choose again</span></div>'; }).join('') + '</div>' : '') +
+        (plan.cleared ? '<p class="muted">' + plan.cleared + ' level choice' + (plan.cleared === 1 ? '' : 's') + ' will be cleared.</p>' : '') +
+        (!plan.changes.length && !plan.unresolved.length && !plan.cleared ? '<p class="muted">This character doesn\'t use any 2014 content, so only its ruleset changes.</p>' : ''),
+      foot: '<button type="button" class="btn" data-upgrade="copy">Upgrade a copy</button><button type="button" class="btn btn-primary" data-upgrade="apply">Upgrade this character</button>', closeLabel: 'Cancel' };
+    renderModal();
+  }
+  function applyUpgrade(asCopy) {
+    var b = cur(), nb = D.planUpgrade(b).build;
+    if (asCopy) {
+      nb.id = D.newBuild().id; nb.name = (b.name || 'Build') + ' (2024)';
+      app.builds.push(nb);
+    } else {
+      app.builds[app.builds.indexOf(b)] = nb;
+    }
+    app.currentId = nb.id; closeModal(); app.tab = 'build'; commit();
   }
 
   function ioDialog() {
@@ -1113,7 +1174,7 @@
       var Lf = app.modal.forLevel, main = D.cls(b.classId), st = ev.levels[Lf - 1] ? ev.levels[Lf - 2].state : null;
       var curCls = (b.plan && b.plan[Lf - 1]) || '__main';
       opts = [{ id: '__main', label: 'Main class (' + (main ? main.name : '') + ')', icon: main ? D.classIcon(main) : '', group: 'Main class', order: -1, meta: 'Levels you don\'t change follow your main class', search: 'main', facets: {} }]
-        .concat(D.CLASSES.map(function (x) {
+        .concat(pool('class').map(function (x) {
           var req = x.mc && x.mc.req, list = req ? (req.any || req.all) : [];
           var ok = !req || !st || (req.any ? list.some(function (a) { return st.abilities[a] >= 13; }) : list.every(function (a) { return st.abilities[a] >= 13; }));
           return { id: x.id, label: x.name, icon: D.classIcon(x), group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2,
@@ -1187,7 +1248,7 @@
         filters: [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, { id: 'size', label: 'Size', values: facetValues(opts, 'size') }, sourceFilter(opts)] };
     }
     if (kind === 'class' || kind === 'species' || kind === 'background') {
-      var list = kind === 'class' ? D.CLASSES : kind === 'species' ? D.SPECIES : D.BACKGROUNDS;
+      var list = pool(kind);
       opts = list.map(function (x) {
         var meta = kind === 'class' ? 'd' + x.hd + ' · ' + x.subclasses.length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
           kind === 'species' ? (x.size || '') + ' · Speed ' + x.speed + (x.darkvision ? ' · Darkvision ' + x.darkvision : '') :
@@ -1418,6 +1479,7 @@
     if (!b.inventory) b.inventory = [];
     if (!b.companions) b.companions = [];
     if (!b.options) b.options = { legacySpells: false };
+    if (!b.ruleset) b.ruleset = D.rulesetOf(b);
     if (b.gear && b.gear.shield === true) b.gear.shield = 'shield';
     var views = { sheet: renderSheet, spells: renderSpells, progression: renderProgression, gear: renderGear, companions: renderCompanions, library: renderLibrary };
     var html = (views[app.tab] || renderBuild)();
@@ -1509,6 +1571,12 @@
     if (t.dataset.iteminfo) { openDetail('item:' + t.dataset.iteminfo); return; }
     if (t.dataset.spellinfo) { openDetail('spell:' + t.dataset.spellinfo); return; }
     if (t.dataset.condinfo) { openDetail('cond:' + t.dataset.condinfo); return; }
+    if (t.dataset.upgrade) { if (t.dataset.upgrade === 'open') openUpgrade(); else applyUpgrade(t.dataset.upgrade === 'copy'); return; }
+    if (t.dataset.newchar) {
+      var legacyOn = $('#nc-legacy') && $('#nc-legacy').checked;
+      var nc = D.newBuild({ name: ($('#nc-name') && $('#nc-name').value.trim()) || 'Hero ' + (app.builds.length + 1), ruleset: legacyOn ? 'legacy' : '2024' });
+      app.builds.push(nc); app.currentId = nc.id; app.tab = 'build'; closeModal(); commit(); window.scrollTo(0, 0); return;
+    }
     if (t.dataset.libopen) { openDetail(t.dataset.libopen); return; }
     if (t.dataset.libcat) { app.lib = { cat: t.dataset.libcat, q: app.lib.q, f1: '', f2: '' }; render(); return; }
     if (t.dataset.invrm !== undefined) { b.inventory.splice(+t.dataset.invrm, 1); commit(); return; }
@@ -1548,10 +1616,7 @@
     switch (t.dataset.action) {
       case 'level-down': setLevel(b.level - 1); break;
       case 'level-up': setLevel(b.level + 1); break;
-      case 'new': {
-        var n = D.newBuild({ name: 'Hero ' + (app.builds.length + 1) });
-        app.builds.push(n); app.currentId = n.id; app.tab = 'build'; commit(); window.scrollTo(0, 0); break;
-      }
+      case 'new': openNewCharacter(); break;
       case 'copy': {
         var c = JSON.parse(JSON.stringify(b));
         c.id = D.newBuild().id; c.name = (b.name || 'Build') + ' (copy)';
@@ -1599,6 +1664,11 @@
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
     if (t.id === 'ps-full') { app.print.full = t.checked; renderPrint(); return; }
+    if (t.id === 'nc-legacy') {
+      $('#nc-warn').hidden = !t.checked;
+      $('#nc-note').textContent = t.checked ? 'The character can use Legacy content. You can upgrade it to the 2024 rules later.' : 'The character uses the 2024 rules. Legacy content stays hidden, and this can\'t be changed later.';
+      return;
+    }
     if (t.id === 'opt-legacy') { b.options.legacySpells = t.checked; commit(); return; }
     if (t.dataset.invqty !== undefined) { b.inventory[+t.dataset.invqty].qty = Math.max(1, parseInt(t.value, 10) || 1); commit(); return; }
     if (t.dataset.invequip !== undefined) { b.inventory[+t.dataset.invequip].equipped = t.checked; commit(); return; }

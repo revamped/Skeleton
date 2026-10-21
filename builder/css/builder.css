@@ -516,3 +516,17 @@ body.printing { overflow: hidden; }
 
 /* Skill icons */
 .skill-ico { width: 1.05em; height: 1.05em; margin-right: 6px; vertical-align: -0.17em; color: var(--accent); }
+
+/* Ruleset: 2024 or Legacy content */
+.ruleset-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 16px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); font-size: .92rem; }
+.ruleset-bar.legacy { border-color: var(--gold); background: var(--gold-soft); }
+.ruleset-bar .btn { margin-left: auto; }
+.legacy-warn { margin: 10px 0; padding: 10px 14px; border-left: 3px solid var(--gold); border-radius: 6px; background: var(--gold-soft); }
+.legacy-warn p { margin: 6px 0 0; }
+.detail-body h4 { margin: 14px 0 6px; }
+
+/* Summary: armor and shield */
+.sum-gear { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 10px 16px 0; font-size: .9rem; }
+.sum-gear span { display: inline-flex; align-items: center; gap: 6px; }
+.sum-gear .ico { color: var(--accent); }
+.sum-gear .muted .ico { color: var(--muted); }

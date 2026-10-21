@@ -287,7 +287,7 @@
     return {
       id: id, label: label, kind: 'one',
       options: function (s) {
-        return DND.FEATS.filter(function (f) { return cats.indexOf(f.cat) >= 0; }).map(function (f) {
+        return DND.FEATS.filter(function (f) { return cats.indexOf(f.cat) >= 0 && DND.allowedIn(f, DND.RULESET); }).map(function (f) {
           var o = DND.featOption(f, null, source);
           if (f.cat === 'style' && !s.flags.fightingStyle) o.unavailable = 'Requires the Fighting Style feature';
           else if (!featMeetsPrereq(f, s, s.level)) o.unavailable = f.minLevel && s.level < f.minLevel ? 'Requires level ' + f.minLevel : f.prereqText ? 'Requires ' + f.prereqText : 'Requires Str or Dex 13';
