@@ -8,7 +8,8 @@
 
   var app = { builds: [], currentId: null, tab: 'build', showAll: true, modal: null, deleteArmed: false,
     lib: { cat: 'spells', q: '', f1: '', f2: '' }, importing: '', clearArmed: false, ready: false,
-    rolls: [], rollMode: '', rollCrit: false, trayOpen: false };
+    rolls: [], rollMode: '', rollCrit: false, trayOpen: false,
+    gh: { url: '', listing: null, busy: false, msg: '' } };
   var ev = null;
 
   /* ---------- Helpers ---------- */
@@ -1599,7 +1600,64 @@
       '<p class="desc">Import Fight Club 5 / Game Master 5 compendium files (.xml, or a .zip of them), such as the collections built from the FightClub5eXML project. Files are read in this browser and stored only here; nothing is uploaded. Imported content adds classes, subclasses, species, backgrounds, feats, spells, items and creatures to the builder.</p>' +
       loaded + status +
       '<div class="chips"><label class="btn btn-primary file-btn" for="import-file">' + (info ? 'Import again (replaces)' : 'Import compendium files') + '</label><input id="import-file" type="file" accept=".xml,.zip,text/xml,application/zip" multiple hidden>' +
-      (info ? '<button type="button" class="btn' + (app.clearArmed ? ' btn-danger armed' : '') + '" data-clearcomp="1">' + (app.clearArmed ? 'Confirm: remove compendium' : 'Remove compendium') + '</button>' : '') + '</div></div></section>';
+      (info ? '<button type="button" class="btn' + (app.clearArmed ? ' btn-danger armed' : '') + '" data-clearcomp="1">' + (app.clearArmed ? 'Confirm: remove compendium' : 'Remove compendium') + '</button>' : '') + '</div>' +
+      githubPanel(info) + '</div></section>';
+  }
+  // Import from a GitHub repository, folder or file link.
+  function githubPanel(info) {
+    var gh = app.gh, L = gh.listing, from = info && info.github;
+    var opts = '';
+    if (L && !L.direct) {
+      var groups = [['Collections', L.collections.map(function (p) { return [p, p.split('/').pop().replace(/\.xml$/i, '').replace(/_/g, ' ')]; })]];
+      if (L.files) {
+        groups.push(['Single books and folders', L.files.filter(function (p) { return /(^|\/)(collection|source)-[^/]*\.xml$/i.test(p) && L.collections.indexOf(p) < 0; })
+          .map(function (p) { return [p, p.replace(/\.xml$/i, '').replace(/\/(collection|source)-[^/]*$/i, '').replace(/^Sources\//, '').replace(/_/g, ' ')]; })]);
+        groups.push(['Everything', [['__all__', 'Every .xml file' + (L.src.path ? ' in ' + L.src.path : '') + ' (' + L.files.length + ')']]]);
+      }
+      var pick = from && from.target;
+      opts = '<div class="field"><label for="gh-col">What to import from ' + esc(L.src.owner + '/' + L.src.repo) + '</label><select id="gh-col">' + groups.filter(function (g) { return g[1].length; }).map(function (g) {
+        return '<optgroup label="' + esc(g[0]) + '">' + g[1].map(function (c) {
+          return '<option value="' + esc(c[0]) + '"' + (c[0] === pick || (!pick && /Core_Rulebooks_5\.5e/.test(c[0])) ? ' selected' : '') + '>' + esc(c[1]) + '</option>';
+        }).join('') + '</optgroup>';
+      }).join('') + '</select>' + (L.offline ? '<p class="desc">GitHub\'s file list isn\'t available right now (' + esc(L.offline) + '), so these are FightClub5eXML\'s usual collections.</p>' : '') +
+        '<p class="desc">Collections pull in every book they list; the Complete Compendium is over a thousand files and takes a few minutes.</p></div>' +
+        '<div class="chips"><button type="button" class="btn btn-primary" data-ghimport="1"' + (gh.busy ? ' disabled' : '') + '>Import from GitHub</button></div>';
+    }
+    return '<div class="gh-import"><h4>Or import from GitHub</h4>' +
+      '<form class="add-custom" id="gh-form"><label class="sr" for="gh-url">GitHub link</label><input id="gh-url" type="text" inputmode="url" autocomplete="off" spellcheck="false" value="' + esc(gh.url || (from && from.url) || D.GITHUB_DEFAULT) + '" placeholder="https://github.com/owner/repository">' +
+      '<button type="submit" class="btn"' + (gh.busy ? ' disabled' : '') + '>' + (gh.busy && !L ? 'Looking…' : 'Find files') + '</button></form>' +
+      '<p class="desc">Paste a repository, a folder (…/tree/branch/path) or a single .xml file. Files download from GitHub straight into this browser.</p>' +
+      (gh.msg ? '<p class="desc gh-msg" role="alert">' + gh.msg + '</p>' : '') + opts +
+      (from && !L ? '<p class="desc">Loaded from <b>' + esc(from.owner + '/' + from.repo) + '</b> · ' + esc(from.label || from.target) + '. <button type="button" class="linklike" data-ghupdate="1">Update from GitHub</button> to get the latest files.</p>' : '') +
+      '</div>';
+  }
+  function githubError(err) {
+    var m = err && err.message || String(err);
+    if (/Failed to fetch|NetworkError|Load failed|blocked/i.test(m)) {
+      return 'Couldn\'t reach GitHub from this page.' + (inFrame ? ' The Claude viewer blocks downloads; <a href="' + PAGES_URL + '#library" target="_blank" rel="noopener">open the GitHub Pages copy</a> to import from GitHub.' : ' Check your connection and try again.');
+    }
+    return esc(m);
+  }
+  function githubFind(url) {
+    app.gh = { url: url, listing: null, busy: true, msg: '' }; render();
+    D.githubListing(url).then(function (L) {
+      app.gh.busy = false;
+      if (L.direct) { githubImport(L.src, [L.src.path], L.src.path); return; }
+      app.gh.listing = L; render();
+    }, function (err) { app.gh.busy = false; app.gh.msg = githubError(err); render(); });
+  }
+  function githubImport(src, start, target) {
+    var label = target === '__all__' ? 'every .xml file' + (src.path ? ' in ' + src.path : '') : target.split('/').pop().replace(/\.xml$/i, '').replace(/_/g, ' ');
+    app.gh.busy = true; app.gh.msg = ''; app.importing = 'Connecting to GitHub…'; render();
+    var progress = function (msg) { app.importing = msg; var el = document.querySelector('.card .pill-gold[aria-live]'); if (el) el.textContent = msg; };
+    D.githubFetch(src, start, progress).then(function (res) {
+      return D.finishImport(res, progress, { github: { url: app.gh.url || D.GITHUB_DEFAULT, owner: src.owner, repo: src.repo, ref: src.ref, path: src.path, target: target, start: start, label: label, failed: res.failed.length } });
+    }).then(function () {
+      app.importing = ''; app.gh = { url: '', listing: null, busy: false, msg: '' };
+      D.registerContent(); render();
+    }, function (err) {
+      app.importing = ''; app.gh.busy = false; app.gh.msg = githubError(err); render();
+    });
   }
   function renderLibrary() {
     var L = app.lib;
@@ -1802,6 +1860,15 @@
     if (t.dataset.iteminfo) { openDetail('item:' + t.dataset.iteminfo); return; }
     if (t.dataset.spellinfo) { openDetail('spell:' + t.dataset.spellinfo); return; }
     if (t.dataset.condinfo) { openDetail('cond:' + t.dataset.condinfo); return; }
+    if (t.dataset.ghimport && app.gh.listing) {
+      var L = app.gh.listing, target = $('#gh-col').value;
+      githubImport(L.src, target === '__all__' ? L.files : [target], target); return;
+    }
+    if (t.dataset.ghupdate) {
+      var g = D.CONTENT.userInfo.github;
+      app.gh.url = g.url;
+      githubImport({ owner: g.owner, repo: g.repo, ref: g.ref, path: g.path }, g.start, g.target); return;
+    }
     if (t.dataset.roll) { doRoll(t.dataset.roll, t.dataset.rlabel); return; }
     if (t.dataset.tray === 'toggle') { app.trayOpen = !app.trayOpen; renderTray(); return; }
     if (t.dataset.tray === 'clear') { app.rolls = []; renderTray(); return; }
@@ -2004,6 +2071,7 @@
       commit(); return;
     }
     if (e.target.id === 'hp-form') { e.preventDefault(); return; }
+    if (e.target.id === 'gh-form') { e.preventDefault(); githubFind($('#gh-url').value); return; }
     if (e.target.id === 'custom-item-form') {
       e.preventDefault();
       var v = $('#custom-item').value.trim();

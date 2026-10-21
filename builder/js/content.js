@@ -766,19 +766,24 @@
         });
       }).then(function () { return step(i + 1); });
     }
-    return step(0).then(function () {
-      DND.FC5.dedupe(data);
-      var counts = {};
-      Object.keys(data).forEach(function (k) { counts[k] = data[k].length; });
-      var total = Object.keys(counts).reduce(function (a, k) { return a + counts[k]; }, 0);
-      if (!total && indexFiles.length) throw new Error(indexFiles.join(', ') + ' only lists other files. Build it into a full compendium with the FightClub5eXML build script, or select the .xml files from its Sources folder instead.');
-      if (!total) throw new Error('No compendium entries found. Use a Fight Club 5 / Game Master 5 compendium .xml file.');
-      var info = { files: names, counts: counts, date: new Date().toISOString() };
-      DND.CONTENT.user = data; DND.CONTENT.userInfo = info;
-      progress && progress('Saving in this browser…');
-      return idb('readwrite', function (st) { return st.put({ data: data, info: info }, 'user'); })
-        .then(function () { info.saved = true; return info; }, function () { info.saved = false; return info; });
-    });
+    return step(0).then(function () { return DND.finishImport({ data: data, names: names, indexFiles: indexFiles }, progress); });
+  };
+
+  // Dedupe, count and store a parsed compendium. extra: details kept with it (such as its GitHub source).
+  DND.finishImport = function (res, progress, extra) {
+    var data = res.data, names = res.names, indexFiles = res.indexFiles || [];
+    DND.FC5.dedupe(data);
+    var counts = {};
+    Object.keys(data).forEach(function (k) { counts[k] = data[k].length; });
+    var total = Object.keys(counts).reduce(function (a, k) { return a + counts[k]; }, 0);
+    if (!total && indexFiles.length) throw new Error(indexFiles.join(', ') + ' only lists other files. Build it into a full compendium with the FightClub5eXML build script, or select the .xml files from its Sources folder instead.');
+    if (!total) throw new Error('No compendium entries found. Use a Fight Club 5 / Game Master 5 compendium .xml file.');
+    var info = { files: names, counts: counts, date: new Date().toISOString() };
+    for (var k in extra || {}) info[k] = extra[k];
+    DND.CONTENT.user = data; DND.CONTENT.userInfo = info;
+    progress && progress('Saving in this browser…');
+    return idb('readwrite', function (st) { return st.put({ data: data, info: info }, 'user'); })
+      .then(function () { info.saved = true; return info; }, function () { info.saved = false; return info; });
   };
 
   if (G.DND_SRD_CONTENT) DND.CONTENT.srd = G.DND_SRD_CONTENT;
