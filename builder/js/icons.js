@@ -89,6 +89,16 @@
     plant: '<path d="M12 21v-9"/><path d="M12 12C12 7 9 4 4 4c0 5 3 8 8 8z"/><path d="M12 14c0-4 3-7 8-7 0 4-3 7-8 7z"/>',
     swarm: '<circle cx="7" cy="8" r="2"/><circle cx="16" cy="6.5" r="2"/><circle cx="12" cy="13" r="2"/><circle cx="6" cy="17" r="2"/><circle cx="17.5" cy="16" r="2"/>',
 
+    /* Spell schools */
+    abjuration: '<path d="M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z"/><circle cx="12" cy="11.5" r="2.8"/><path d="M12 7v1.7M12 14.3V16M7.8 11.5h1.4M14.8 11.5h1.4"/>',
+    conjuration: '<ellipse cx="12" cy="17.5" rx="8" ry="3"/><path d="M12 15V4"/><path d="m8.5 7.5 3.5-3.5 3.5 3.5"/><path d="M6 9.5h.01M18 9.5h.01M7.5 5h.01M16.5 5h.01"/>',
+    divination: '<circle cx="12" cy="10" r="6.5"/><path d="M7 21h10l-1.5-3h-7z"/><path d="M9.5 8.5a3 3 0 0 1 2.5-1.5"/>',
+    enchantment: '<path d="M12 20s-7.5-4.5-7.5-10A4 4 0 0 1 12 7.5 4 4 0 0 1 19.5 10C19.5 15.5 12 20 12 20z"/><path d="M19 2.5v3M17.5 4h3"/>',
+    evocation: '<path d="M13.5 2 4.5 14h7l-1 8 9-12h-7z"/>',
+    illusion: '<circle cx="9" cy="12" r="5.5"/><circle cx="15" cy="12" r="5.5" stroke-dasharray="2 2.2"/>',
+    necromancy: '<path d="M5 11a7 7 0 0 1 14 0c0 2.5-1 4-2.5 5v3h-9v-3C6 15 5 13.5 5 11z"/><circle cx="9.5" cy="11" r="1.5"/><circle cx="14.5" cy="11" r="1.5"/><path d="M10.5 19v-2.5M13.5 19v-2.5"/>',
+    transmutation: '<path d="M12 3.5 20.5 18.5h-17z"/><circle cx="12" cy="13.5" r="3"/><path d="M12 3.5v7"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',
@@ -177,6 +187,15 @@
     [/humanoid/, 'human'], [/monstrosity/, 'monstrosity'], [/ooze/, 'ooze'], [/plant/, 'plant'], [/undead/, 'skull']
   ];
   DND.creatureIcon = function (m) { return match(m && m.type, CREATURE_RULES, 'd20'); };
+
+  var SCHOOL_ICONS = { A: 'abjuration', C: 'conjuration', D: 'divination', EN: 'enchantment', EV: 'evocation', I: 'illusion', N: 'necromancy', T: 'transmutation' };
+  // Icon for a spell school code (A, C, D, EN, EV, I, N, T) or a spell name with known details.
+  DND.schoolIcon = function (codeOrName) {
+    if (SCHOOL_ICONS[codeOrName]) return SCHOOL_ICONS[codeOrName];
+    var info = DND.SPELL_INFO && DND.SPELL_INFO[codeOrName];
+    return info && SCHOOL_ICONS[info.school] || null;
+  };
+  DND.SCHOOL_ICONS = SCHOOL_ICONS;
 
   var ITEM_TYPE_ICONS = { P: 'potion', RG: 'ring', SC: 'scroll', WD: 'wand', RD: 'rod', ST: 'staff', W: 'wondrous', G: 'gear', $: 'gem', A: 'ammo',
     LA: 'lightArmor', MA: 'mediumArmor', HA: 'heavyArmor', S: 'shield' };

@@ -493,3 +493,10 @@ body.printing { overflow: hidden; }
 .sb-type .ico { color: var(--accent); }
 .companion .card-head { align-items: center; }
 .ps-comp .ico { color: var(--paper-ink); }
+
+/* Spell school icons */
+.school-ico { display: inline-flex; vertical-align: -0.15em; margin-right: 4px; color: var(--accent); }
+.school-ico .ico { width: 1em; height: 1em; }
+.school-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: -4px 0 12px; font-size: 0.85rem; color: var(--muted, inherit); }
+.school-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.school-legend .ico { width: 1.05em; height: 1.05em; color: var(--accent); }
