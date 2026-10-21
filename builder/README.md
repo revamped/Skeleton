@@ -78,6 +78,7 @@ node tools/build-srd.js ./FightClub5eXML
 | `js/engine.js` | Replays a build from origin to level 20 and produces a snapshot per level |
 | `js/fc5.js` | Dependency-free reader for Fight Club 5 compendium XML (browser and Node) |
 | `js/content.js` | Merges SRD and imported content into the builder; import and IndexedDB storage |
+| `js/icons.js` | Line icons for classes, species, backgrounds, weapons, armor and items, and the name-matching rules that pick them |
 | `js/print.js` | Printable character sheet and plain-text export |
 | `js/app.js` | UI rendering, events, persistence |
 | `tools/build-srd.js` | Builds `js/data/srd-content.js` |

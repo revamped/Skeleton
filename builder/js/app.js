@@ -207,11 +207,13 @@
     groups.slice(1).forEach(function (g) { g[1].sort(function (a, b) { return a.name.localeCompare(b.name); }); });
     return groups.filter(function (g) { return g[1].length; });
   }
+  function ico(name, cls) { return D.icon(name, cls); }
+  function badge(name) { return name ? '<span class="ico-badge">' + D.icon(name) + '</span>' : ''; }
   function pickerField(id, label, kind, list, value, descFn, opts) {
     opts = opts || {};
     var curItem = find(list, value);
     return '<div class="field"><label for="' + id + '">' + label + '</label><button type="button" id="' + id + '" class="btn picker-btn" data-openlist="' + kind + '">' +
-      '<span>' + esc(opts.title || (curItem ? curItem.name : 'Choose…')) + '</span><span class="muted">' + (opts.count || list.length) + ' ▾</span></button>' +
+      '<span class="pb-main">' + (opts.icon ? ico(opts.icon) : '') + '<span>' + esc(opts.title || (curItem ? curItem.name : 'Choose…')) + '</span></span><span class="muted">' + (opts.count || list.length) + ' ▾</span></button>' +
       (opts.after || '') +
       (descFn && curItem ? '<p class="desc">' + esc(descFn(curItem)) + (curItem.src ? ' · ' + esc(curItem.src) : '') + '</p>' : '') + '</div>';
   }
@@ -369,14 +371,14 @@
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
       pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; },
-        { title: classBase(ev.cls.name), count: speciesGroups('class').order.length, after: classVersionField() + classSubField() }) +
+        { title: classBase(ev.cls.name), icon: D.classIcon(ev.cls), count: speciesGroups('class').order.length, after: classVersionField() + classSubField() }) +
       pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
-        { title: speciesBase(ev.species.name), count: speciesGroups().order.length, after: subspeciesField() }) +
+        { title: speciesBase(ev.species.name), icon: D.speciesIcon(speciesBase(ev.species.name)), count: speciesGroups().order.length, after: subspeciesField() }) +
       pickerField('f-bg', 'Background', 'background', D.BACKGROUNDS, b.backgroundId, function (g) {
         if (g.custom) return 'Any three abilities, Origin feat, two skills';
         if (g.legacy) return '2014 background: skills ' + (g.skills.map(function (k) { return D.SKILLS[k].name; }).join(', ') || '—');
         return 'Abilities: ' + g.abilities.map(abbr).join(', ') + ' · Feat: ' + g.featName;
-      }, { title: backgroundBase(ev.background.name), count: speciesGroups('background').order.length, after: backgroundSubField() }) +
+      }, { title: backgroundBase(ev.background.name), icon: D.backgroundIcon(ev.background.name), count: speciesGroups('background').order.length, after: backgroundSubField() }) +
       '</div>' +
       '<div class="field"><div class="toolbar"><span class="label">Ability scores (before background bonuses)</span>' +
       '<div class="seg" role="group" aria-label="Ability score method">' +
@@ -407,7 +409,7 @@
     }
     var prev = L > 1 ? ev.levels[L - 2].d.hp : 0;
     return '<section class="' + cls + '" id="lvl-' + L + '">' +
-      '<div class="lvl-head"><div class="lvl-num">' + L + '</div><div class="lvl-title"><strong>' + esc(lv.cls.name) + ' ' + lv.classLevel +
+      '<div class="lvl-head"><div class="lvl-num">' + L + '</div><div class="lvl-title"><strong>' + ico(D.classIcon(lv.cls), 'ico-title') + esc(lv.cls.name) + ' ' + lv.classLevel +
       (ev.multiclass ? ' <span class="muted lvl-char">· character level ' + L + '</span>' : '') + '</strong>' +
       '<div class="lvl-stats"><span>PB ' + sign(lv.d.pb) + '</span><span>HP ' + lv.d.hp + (L > 1 ? ' (+' + (lv.d.hp - prev) + ')' : '') + '</span>' +
       lv.d.columns.map(function (c) { return '<span>' + esc(c.label) + ' ' + esc(c.value) + '</span>'; }).join('') + '</div></div>' + todo +
@@ -442,7 +444,8 @@
   function renderSummary() {
     var b = cur(), lv = ev.levels[b.level - 1], d = lv.d, s = lv.state, base = ev.levels[0].state;
     var vit = [['AC', d.ac], ['HP', d.hp], ['Speed', d.speed], ['Init', sign(d.init)], ['Prof', sign(d.pb)], ['Passive', d.passivePerception]];
-    var html = '<section class="card"><div class="sum-head"><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
+    var html = '<section class="card"><div class="sum-head"><div class="sum-icons">' + lv.d.classLevels.map(function (c) { return badge(D.classIcon(D.cls(c.id) || { name: c.name })); }).join('') +
+      badge(D.speciesIcon(speciesBase(ev.species.name))) + badge(D.backgroundIcon(ev.background.name)) + '</div><span class="eyebrow">Level ' + b.level + ' ' + esc(ev.species.name) + '</span><h2>' + esc(b.name || 'Unnamed') + '</h2>' +
       '<span class="muted">' + esc(ev.multiclass ? classSplit(lv) : ev.cls.name + (subName(lv) ? ' · ' + subName(lv) : '')) + ' · ' + esc(ev.background.name) + '</span></div>' +
       '<div class="vitals">' + vit.map(function (v) { return '<div class="vital"><b>' + v[1] + '</b><span>' + v[0] + '</span></div>'; }).join('') + '</div>' +
       '<div class="abil-row">' + D.ABILITIES.map(function (a) {
@@ -769,7 +772,7 @@
         var g = o.group && o.group !== lg3 ? '<div class="pick-group">' + esc(o.group) + '</div>' : '';
         lg3 = o.group;
         var on = src.current && o.id === src.current;
-        return g + '<button type="button" class="pick pick-row' + (on ? ' on' : '') + '" data-listpick="' + esc(o.id) + '"><span><b>' + esc(o.label) + '</b>' + (on ? ' <span class="pill pill-ok">current</span>' : '') + (o.meta ? ' <span class="muted">' + esc(o.meta) + '</span>' : '') + '</span>' +
+        return g + '<button type="button" class="pick pick-row' + (o.icon ? ' has-ico' : '') + (on ? ' on' : '') + '" data-listpick="' + esc(o.id) + '">' + badge(o.icon) + '<span><b>' + esc(o.label) + '</b>' + (on ? ' <span class="pill pill-ok">current</span>' : '') + (o.meta ? ' <span class="muted">' + esc(o.meta) + '</span>' : '') + '</span>' +
           (o.desc ? '<span class="pick-desc">' + esc(snip(o.desc, 220)) + '</span>' : '') + '</button>';
       }).join('') || '<p class="muted" style="padding:12px">No matches. Try clearing a filter.</p>';
       list3 += showMore(hits.length, shown.length);
@@ -839,20 +842,20 @@
   function attackTable(d) {
     return '<div class="table-wrap"><table><thead><tr><th>Attack</th><th class="n">Hit</th><th>Damage</th><th>Mastery</th></tr></thead><tbody>' +
       (d.attacks.length ? d.attacks.map(function (a) {
-        return '<tr><td>' + esc(a.name) + (a.prof ? '' : ' <span class="pill pill-todo">not proficient</span>') + '</td><td class="n">' + sign(a.hit) + '</td><td>' + esc(a.dmg) + '</td><td>' +
+        return '<tr><td>' + (a.name === 'Unarmed Strike' ? ico('monk') : ico(D.weaponIcon(a))) + ' ' + esc(a.name) + (a.prof ? '' : ' <span class="pill pill-todo">not proficient</span>') + '</td><td class="n">' + sign(a.hit) + '</td><td>' + esc(a.dmg) + '</td><td>' +
           (a.mastery ? '<span title="' + esc(D.MASTERY[a.mastery] || '') + '">' + esc(a.mastery) + '</span>' : '<span class="muted">—</span>') + '</td></tr>';
       }).join('') : '<tr><td colspan="4" class="muted">No weapons equipped.</td></tr>') + '</tbody></table></div>';
   }
 
   function armorButton(gear) {
     var a = find(D.ARMOR, gear.armor) || D.ARMOR[0];
-    return '<button type="button" id="g-armor" class="btn picker-btn" data-openlist="armor"><span>' + esc(a.name) + '</span><span class="muted">' +
+    return '<button type="button" id="g-armor" class="btn picker-btn" data-openlist="armor"><span class="pb-main">' + ico(D.armorIcon(a)) + '<span>' + esc(a.name) + '</span></span><span class="muted">' +
       (a.ac ? a.type + ', AC ' + (a.ac + (a.bonusAc || 0)) : '') + ' ▾</span></button>';
   }
   function shieldButton(gear) {
     var curId = gear.shield === true ? 'shield' : gear.shield || '';
     var sh = curId && find(D.SHIELDS || [], curId);
-    return '<button type="button" id="g-shield" class="btn picker-btn" data-openlist="shield"><span>' + esc(sh ? sh.name : curId ? 'Shield' : 'No shield') + '</span><span class="muted">' +
+    return '<button type="button" id="g-shield" class="btn picker-btn" data-openlist="shield"><span class="pb-main">' + ico(curId ? 'shield' : 'noArmor') + '<span>' + esc(sh ? sh.name : curId ? 'Shield' : 'No shield') + '</span></span><span class="muted">' +
       (curId ? '+' + (2 + (sh && sh.bonus || 0)) + ' AC ' : '') + '▾</span></button>';
   }
 
@@ -867,13 +870,13 @@
       '<div class="field"><div class="toolbar"><span class="label">Weapons</span><button type="button" class="btn btn-small btn-primary" data-openlist="weapon">Add weapon</button></div>' +
       '<div class="chips">' + (gear.weapons || []).map(function (id) {
         var w = D.weapon(id);
-        return '<span class="chip">' + esc(w ? w.name : id + ' (not loaded)') + '<button type="button" data-rmweapon="' + esc(id) + '" aria-label="Remove ' + esc(w ? w.name : id) + '">×</button></span>';
+        return '<span class="chip">' + (w ? ico(D.weaponIcon(w)) + ' ' : '') + esc(w ? w.name : id + ' (not loaded)') + '<button type="button" data-rmweapon="' + esc(id) + '" aria-label="Remove ' + esc(w ? w.name : id) + '">×</button></span>';
       }).join('') + '</div></div>' + attackTable(d) + '</div></section>';
 
     var rows = inv.map(function (e, i) {
       var it = D.item(e.id);
       var name = it ? it.name : e.name || e.id;
-      return '<tr><td>' + (it ? '<button type="button" class="linklike" data-iteminfo="' + esc(e.id) + '">' + esc(name) + '</button>' : esc(name) + (e.id ? ' <span class="pill pill-plain">not loaded</span>' : '')) +
+      return '<tr><td>' + ico(it ? D.itemIcon(it) : 'gear') + ' ' + (it ? '<button type="button" class="linklike" data-iteminfo="' + esc(e.id) + '">' + esc(name) + '</button>' : esc(name) + (e.id ? ' <span class="pill pill-plain">not loaded</span>' : '')) +
         (it && it.rarity ? ' <span class="muted">' + esc(it.rarity) + '</span>' : '') + '</td>' +
         '<td class="n"><label class="sr" for="inv-q-' + i + '">Quantity</label><input class="qty" id="inv-q-' + i + '" type="number" min="1" value="' + (e.qty || 1) + '" data-invqty="' + i + '"></td>' +
         '<td class="n"><label class="sr" for="inv-e-' + i + '">Equipped</label><input type="checkbox" id="inv-e-' + i + '" data-invequip="' + i + '"' + (e.equipped ? ' checked' : '') + '></td>' +
@@ -987,7 +990,7 @@
         var grp = (w.cat === 'martial' ? 'Martial ' : 'Simple ') + (w.ranged ? 'ranged' : 'melee');
         var props = (w.props || '').split('').map(function (p) { return PROP_NAMES[p]; }).filter(Boolean);
         var die = String(w.dmg || '').replace(/\s/g, '').toLowerCase();
-        return { id: w.id, label: w.name, group: (w.magic ? 'Magic · ' : '') + grp, order: (w.magic ? 10 : 0) + GROUP_ORDER.indexOf(grp),
+        return { id: w.id, label: w.name, icon: D.weaponIcon(w), group: (w.magic ? 'Magic · ' : '') + grp, order: (w.magic ? 10 : 0) + GROUP_ORDER.indexOf(grp),
           meta: w.cat + ' · ' + (w.ranged ? 'ranged' : 'melee') + ' · ' + w.dmg + ' ' + w.type + (props.length ? ' · ' + props.join(', ') : '') + (w.bonusHit ? ' · +' + w.bonusHit : '') + (w.mastery ? ' · ' + w.mastery : ''),
           search: (w.name + ' ' + w.type + ' ' + props.join(' ') + ' ' + (w.mastery || '')).toLowerCase(),
           facets: { cat: w.cat, range: w.ranged ? 'ranged' : 'melee', dtype: w.type, die: die, prop: props, mastery: w.mastery || '', magic: w.magic ? 'magic' : 'mundane', src: w.src || 'SRD 5.2' } };
@@ -1007,7 +1010,7 @@
       var typeName = { none: 'No armor', light: 'Light armor', medium: 'Medium armor', heavy: 'Heavy armor' };
       var typeOrder = ['none', 'light', 'medium', 'heavy'];
       opts = D.ARMOR.map(function (a) {
-        return { id: a.id, label: a.name, group: (a.magic ? 'Magic · ' : '') + typeName[a.type], order: (a.magic ? 10 : 0) + typeOrder.indexOf(a.type),
+        return { id: a.id, label: a.name, icon: D.armorIcon(a), group: (a.magic ? 'Magic · ' : '') + typeName[a.type], order: (a.magic ? 10 : 0) + typeOrder.indexOf(a.type),
           meta: a.ac ? 'AC ' + (a.ac + (a.bonusAc || 0)) + (a.type === 'light' ? ' + Dex' : a.type === 'medium' ? ' + Dex (max 2)' : '') + (a.str ? ' · Str ' + a.str : '') + (a.stealthDis ? ' · Stealth disadvantage' : '') : 'AC 10 + Dex',
           search: (a.name + ' ' + a.type).toLowerCase(), facets: { type: a.type, magic: a.magic ? 'magic' : 'mundane', src: a.src || 'SRD 5.2' } };
       }).sort(function (a, c) { return a.order - c.order || (a.order < 10 ? 0 : a.label.localeCompare(c.label)); });
@@ -1016,14 +1019,14 @@
         { id: 'magic', label: 'Magic', values: [['mundane', 'Mundane'], ['magic', 'Magic']] }, sourceFilter(opts)] };
     }
     if (kind === 'shield') {
-      opts = [{ id: 'none', label: 'No shield', meta: '', search: 'no shield none', facets: { magic: 'mundane' } }].concat((D.SHIELDS || []).map(function (sh) {
-        return { id: sh.id, label: sh.name, meta: '+' + (2 + (sh.bonus || 0)) + ' AC', group: sh.itemId ? 'Magic shields' : 'Shields', search: sh.name.toLowerCase(), facets: { magic: sh.itemId ? 'magic' : 'mundane' } };
+      opts = [{ id: 'none', label: 'No shield', icon: 'noArmor', meta: '', search: 'no shield none', facets: { magic: 'mundane' } }].concat((D.SHIELDS || []).map(function (sh) {
+        return { id: sh.id, label: sh.name, icon: 'shield', meta: '+' + (2 + (sh.bonus || 0)) + ' AC', group: sh.itemId ? 'Magic shields' : 'Shields', search: sh.name.toLowerCase(), facets: { magic: sh.itemId ? 'magic' : 'mundane' } };
       }));
       return { title: 'Choose a shield', current: gear.shield === true ? 'shield' : gear.shield || 'none', options: opts, filters: [{ id: 'magic', label: 'Magic', values: [['mundane', 'Mundane'], ['magic', 'Magic']] }] };
     }
     if (kind === 'item') {
       opts = D.ITEMS.map(function (it) {
-        return { id: it.id, label: it.name, meta: [D.ITEM_TYPE[it.type] || it.type, it.rarity, it.attune ? 'attunement' : '', it.ed === '2024' ? '2024' : ''].filter(Boolean).join(' · '),
+        return { id: it.id, label: it.name, icon: D.itemIcon(it), meta: [D.ITEM_TYPE[it.type] || it.type, it.rarity, it.attune ? 'attunement' : '', it.ed === '2024' ? '2024' : ''].filter(Boolean).join(' · '),
           desc: it.text, search: (it.name + ' ' + (it.rarity || '') + ' ' + (D.ITEM_TYPE[it.type] || '')).toLowerCase(),
           facets: { type: D.ITEM_TYPE[it.type] || it.type || 'Other', rarity: it.rarity || (it.magic ? 'unknown' : 'mundane'), attune: it.attune ? 'yes' : 'no', magic: it.magic ? 'magic' : 'mundane', ed: it.ed, src: it.src || '' } };
       }).sort(function (a, c) { return a.label.localeCompare(c.label); });
@@ -1055,11 +1058,11 @@
     if (kind === 'levelclass') {
       var Lf = app.modal.forLevel, main = D.cls(b.classId), st = ev.levels[Lf - 1] ? ev.levels[Lf - 2].state : null;
       var curCls = (b.plan && b.plan[Lf - 1]) || '__main';
-      opts = [{ id: '__main', label: 'Main class (' + (main ? main.name : '') + ')', group: 'Main class', order: -1, meta: 'Levels you don\'t change follow your main class', search: 'main', facets: {} }]
+      opts = [{ id: '__main', label: 'Main class (' + (main ? main.name : '') + ')', icon: main ? D.classIcon(main) : '', group: 'Main class', order: -1, meta: 'Levels you don\'t change follow your main class', search: 'main', facets: {} }]
         .concat(D.CLASSES.map(function (x) {
           var req = x.mc && x.mc.req, list = req ? (req.any || req.all) : [];
           var ok = !req || !st || (req.any ? list.some(function (a) { return st.abilities[a] >= 13; }) : list.every(function (a) { return st.abilities[a] >= 13; }));
-          return { id: x.id, label: x.name, group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2,
+          return { id: x.id, label: x.name, icon: D.classIcon(x), group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2,
             meta: 'd' + x.hd + (req ? ' · needs ' + list.map(function (a) { return a.toUpperCase(); }).join(req.any ? ' or ' : ' + ') + ' 13' + (ok ? '' : ' (not met)') : '') + (x.caster ? ' · spellcaster' : ''),
             search: (x.name + ' ' + (x.src || '')).toLowerCase(), facets: { rules: rulesGroup(x), src: x.src || 'SRD 5.2', ok: ok ? 'yes' : 'no' } };
         }).sort(function (a, c) { return a.order - c.order || (a.order ? a.label.localeCompare(c.label) : 0); }));
@@ -1080,7 +1083,7 @@
         });
         var first = g.list[0];
         var variants = g.list.map(function (x) { return x.compendium ? variantLabel(x, 'class').replace(/^Standard \((.*)\)$/, '$1') : '2024'; });
-        return { id: 'base:' + k, label: g.name, group: !first.compendium ? '2024 rules (built in)' : 'More classes', order: !first.compendium ? 0 : 1,
+        return { id: 'base:' + k, label: g.name, icon: D.classIcon(first), group: !first.compendium ? '2024 rules (built in)' : 'More classes', order: !first.compendium ? 0 : 1,
           meta: 'd' + first.hd + (first.caster ? ' · spellcaster' : '') + ' · ' + subs + ' subclasses' + (g.list.length > 1 ? ' · versions: ' + variants.join(', ') : ''),
           search: (g.name + ' ' + g.list.map(function (x) { return x.name + ' ' + (x.src || ''); }).join(' ')).toLowerCase(),
           facets: { rules: rules, src: srcs } };
@@ -1099,7 +1102,7 @@
         var first = g.list[0];
         var variants = g.list.map(function (x) { return variantLabel(x, 'background'); }).filter(function (v) { return v !== 'Standard'; });
         var about = first.custom ? 'any abilities' : first.legacy ? '2014 background' : 'Feat: ' + (first.featName || '');
-        return { id: 'base:' + k, label: g.name, group: !first.compendium ? '2024 rules (built in)' : 'More backgrounds', order: !first.compendium ? 0 : 1,
+        return { id: 'base:' + k, label: g.name, icon: D.backgroundIcon(g.name), group: !first.compendium ? '2024 rules (built in)' : 'More backgrounds', order: !first.compendium ? 0 : 1,
           meta: (g.list.length > 1 ? g.list.length + ' versions' + (variants.length ? ': ' + variants.slice(0, 3).join(', ') + (variants.length > 3 ? '…' : '') : '') + ' · ' : '') + about,
           search: (g.name + ' ' + g.list.map(function (x) { return x.name + ' ' + (x.src || ''); }).join(' ')).toLowerCase(),
           facets: { rules: rules, src: srcs } };
@@ -1121,7 +1124,7 @@
         var lin = builtin && lineageSpec(builtin);
         var nOpts = g.list.length - (builtin ? 1 : 0) + (builtin ? (lin ? lin.options.length : 1) : 0);
         var variants = g.list.map(variantLabel).filter(function (v) { return v !== 'Standard'; });
-        return { id: 'base:' + k, label: g.name, group: builtin ? '2024 rules (built in)' : 'More species', order: builtin ? 0 : 1,
+        return { id: 'base:' + k, label: g.name, icon: D.speciesIcon(g.name), group: builtin ? '2024 rules (built in)' : 'More species', order: builtin ? 0 : 1,
           meta: nOpts > 1 ? nOpts + ' options' + (variants.length ? ': ' + variants.slice(0, 4).join(', ') + (variants.length > 4 ? '…' : '') : '') : (g.list[0].size || '') + ' · ' + (g.list[0].src || 'SRD 5.2'),
           search: (g.name + ' ' + g.list.map(function (x) { return x.name + ' ' + (x.src || ''); }).join(' ')).toLowerCase(),
           facets: { rules: rules, size: sizes, src: srcs } };
@@ -1237,7 +1240,8 @@
     var hits = libMatches(), shown = hits.slice(0, 200);
     return '<p class="muted">' + hits.length.toLocaleString() + ' result' + (hits.length === 1 ? '' : 's') + (hits.length > 200 ? ' · showing the first 200' : '') + '</p>' +
       '<div class="lib-list">' + shown.map(function (e) {
-        return '<button type="button" class="lib-row" data-libopen="' + esc(e.id) + '"><b>' + esc(e.label) + '</b><span class="muted">' + esc(e.meta) + '</span><span class="lib-src">' + esc(e.src || '') + '</span></button>';
+        var ic = app.lib.cat === 'items' ? D.itemIcon(e.obj) : app.lib.cat === 'species' ? D.speciesIcon(speciesBase(e.obj.name)) : app.lib.cat === 'backgrounds' ? D.backgroundIcon(e.obj.name) : app.lib.cat === 'classes' ? D.classIcon(e.obj) : '';
+        return '<button type="button" class="lib-row" data-libopen="' + esc(e.id) + '"><b>' + (ic ? ico(ic) + ' ' : '') + esc(e.label) + '</b><span class="muted">' + esc(e.meta) + '</span><span class="lib-src">' + esc(e.src || '') + '</span></button>';
       }).join('') + '</div>';
   }
   function importPanel() {
