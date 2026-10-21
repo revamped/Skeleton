@@ -16,7 +16,8 @@
     str: 'str', dex: 'dex', con: 'con', int: 'int', wis: 'wis', cha: 'cha' };
   var SKILL_BY_NAME = {};
   Object.keys(DND.SKILLS).forEach(function (k) { SKILL_BY_NAME[lc(DND.SKILLS[k].name)] = k; });
-  var DMG = { S: 'slashing', P: 'piercing', B: 'bludgeoning', F: 'fire', C: 'cold', L: 'lightning', A: 'acid', N: 'necrotic', R: 'radiant', T: 'thunder', O: 'force', PS: 'psychic', I: 'poison' };
+  var DMG = { S: 'slashing', P: 'piercing', B: 'bludgeoning', F: 'fire', C: 'cold', L: 'lightning', A: 'acid', N: 'necrotic', R: 'radiant', T: 'thunder', O: 'force', PS: 'psychic', PY: 'psychic', I: 'poison' };
+  DND.DMG_NAME = DMG;
   var SIZE = { T: 'Tiny', S: 'Small', M: 'Medium', L: 'Large', H: 'Huge', G: 'Gargantuan', V: 'Medium or Small' };
   var NUM = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, a: 1, an: 1 };
   var SCHOOL = { A: 'Abjuration', C: 'Conjuration', D: 'Divination', EN: 'Enchantment', EV: 'Evocation', I: 'Illusion', N: 'Necromancy', T: 'Transmutation' };

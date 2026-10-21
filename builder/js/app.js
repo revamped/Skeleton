@@ -782,7 +782,7 @@
         var g = o.group && o.group !== lg3 ? '<div class="pick-group">' + esc(o.group) + '</div>' : '';
         lg3 = o.group;
         var on = src.current && o.id === src.current;
-        return g + '<button type="button" class="pick pick-row' + (o.icon ? ' has-ico' : '') + (on ? ' on' : '') + '" data-listpick="' + esc(o.id) + '">' + badge(o.icon) + '<span><b>' + esc(o.label) + '</b>' + (on ? ' <span class="pill pill-ok">current</span>' : '') + (o.meta ? ' <span class="muted">' + esc(o.meta) + '</span>' : '') + '</span>' +
+        return g + '<button type="button" class="pick pick-row' + (o.icon ? ' has-ico' : '') + (on ? ' on' : '') + '" data-listpick="' + esc(o.id) + '">' + badge(o.icon) + '<span><b>' + esc(o.label) + '</b>' + (on ? ' <span class="pill pill-ok">current</span>' : '') + (o.meta ? ' <span class="muted">' + (o.metaHtml ? o.metaHtml(o.meta) : esc(o.meta)) + '</span>' : '') + '</span>' +
           (o.desc ? '<span class="pick-desc">' + esc(snip(o.desc, 220)) + '</span>' : '') + '</button>';
       }).join('') || '<p class="muted" style="padding:12px">No matches. Try clearing a filter.</p>';
       list3 += showMore(hits.length, shown.length);
@@ -849,10 +849,19 @@
 
   /* ---------- Rendering: gear & inventory ---------- */
 
+  // Escapes text and puts a damage-type icon before each damage type it names.
+  function dmgHtml(text) {
+    return esc(text).replace(new RegExp('\\b(' + D.DAMAGE_TYPES.join('|') + ')\\b', 'gi'), function (t) {
+      return '<span class="dmg-type" title="' + esc(t.toLowerCase()) + ' damage">' + ico(D.damageIcon(t)) + t + '</span>';
+    });
+  }
+  function itemDamage(it) {
+    return it && it.dmg1 ? it.dmg1 + (it.dmg2 ? '/' + it.dmg2 : '') + ' ' + (D.DMG_NAME[it.dmgType] || it.dmgType || '') : '';
+  }
   function attackTable(d) {
     return '<div class="table-wrap"><table><thead><tr><th>Attack</th><th class="n">Hit</th><th>Damage</th><th>Mastery</th></tr></thead><tbody>' +
       (d.attacks.length ? d.attacks.map(function (a) {
-        return '<tr><td>' + (a.name === 'Unarmed Strike' ? ico('monk') : ico(D.weaponIcon(a))) + ' ' + esc(a.name) + (a.prof ? '' : ' <span class="pill pill-todo">not proficient</span>') + '</td><td class="n">' + sign(a.hit) + '</td><td>' + esc(a.dmg) + '</td><td>' +
+        return '<tr><td>' + (a.name === 'Unarmed Strike' ? ico('monk') : ico(D.weaponIcon(a))) + ' ' + esc(a.name) + (a.prof ? '' : ' <span class="pill pill-todo">not proficient</span>') + '</td><td class="n">' + sign(a.hit) + '</td><td>' + dmgHtml(a.dmg) + '</td><td>' +
           (a.mastery ? '<span title="' + esc(D.MASTERY[a.mastery] || '') + '">' + esc(a.mastery) + '</span>' : '<span class="muted">—</span>') + '</td></tr>';
       }).join('') : '<tr><td colspan="4" class="muted">No weapons equipped.</td></tr>') + '</tbody></table></div>';
   }
@@ -880,14 +889,14 @@
       '<div class="field"><div class="toolbar"><span class="label">Weapons</span><button type="button" class="btn btn-small btn-primary" data-openlist="weapon">Add weapon</button></div>' +
       '<div class="chips">' + (gear.weapons || []).map(function (id) {
         var w = D.weapon(id);
-        return '<span class="chip">' + (w ? ico(D.weaponIcon(w)) + ' ' : '') + esc(w ? w.name : id + ' (not loaded)') + '<button type="button" data-rmweapon="' + esc(id) + '" aria-label="Remove ' + esc(w ? w.name : id) + '">×</button></span>';
+        return '<span class="chip">' + (w ? ico(D.weaponIcon(w)) + ' ' : '') + esc(w ? w.name : id + ' (not loaded)') + (w && D.damageIcon(w.type) ? ' <span class="dmg-type" title="' + esc(w.dmg + ' ' + w.type) + '">' + ico(D.damageIcon(w.type)) + '</span>' : '') + '<button type="button" data-rmweapon="' + esc(id) + '" aria-label="Remove ' + esc(w ? w.name : id) + '">×</button></span>';
       }).join('') + '</div></div>' + attackTable(d) + '</div></section>';
 
     var rows = inv.map(function (e, i) {
       var it = D.item(e.id);
       var name = it ? it.name : e.name || e.id;
       return '<tr><td>' + ico(it ? D.itemIcon(it) : 'gear') + ' ' + (it ? '<button type="button" class="linklike" data-iteminfo="' + esc(e.id) + '">' + esc(name) + '</button>' : esc(name) + (e.id ? ' <span class="pill pill-plain">not loaded</span>' : '')) +
-        (it && it.rarity ? ' <span class="muted">' + esc(it.rarity) + '</span>' : '') + '</td>' +
+        (it && it.rarity ? ' <span class="muted">' + esc(it.rarity) + '</span>' : '') + (itemDamage(it) ? ' <span class="muted">' + dmgHtml(itemDamage(it)) + '</span>' : '') + '</td>' +
         '<td class="n"><label class="sr" for="inv-q-' + i + '">Quantity</label><input class="qty" id="inv-q-' + i + '" type="number" min="1" value="' + (e.qty || 1) + '" data-invqty="' + i + '"></td>' +
         '<td class="n"><label class="sr" for="inv-e-' + i + '">Equipped</label><input type="checkbox" id="inv-e-' + i + '" data-invequip="' + i + '"' + (e.equipped ? ' checked' : '') + '></td>' +
         '<td class="n">' + (it && it.attune ? '<label class="sr" for="inv-a-' + i + '">Attuned</label><input type="checkbox" id="inv-a-' + i + '" data-invattune="' + i + '"' + (e.attuned ? ' checked' : '') + '>' : '<span class="muted">—</span>') + '</td>' +
@@ -1001,6 +1010,7 @@
         var props = (w.props || '').split('').map(function (p) { return PROP_NAMES[p]; }).filter(Boolean);
         var die = String(w.dmg || '').replace(/\s/g, '').toLowerCase();
         return { id: w.id, label: w.name, icon: D.weaponIcon(w), group: (w.magic ? 'Magic · ' : '') + grp, order: (w.magic ? 10 : 0) + GROUP_ORDER.indexOf(grp),
+          metaHtml: dmgHtml,
           meta: w.cat + ' · ' + (w.ranged ? 'ranged' : 'melee') + ' · ' + w.dmg + ' ' + w.type + (props.length ? ' · ' + props.join(', ') : '') + (w.bonusHit ? ' · +' + w.bonusHit : '') + (w.mastery ? ' · ' + w.mastery : ''),
           search: (w.name + ' ' + w.type + ' ' + props.join(' ') + ' ' + (w.mastery || '')).toLowerCase(),
           facets: { cat: w.cat, range: w.ranged ? 'ranged' : 'melee', dtype: w.type, die: die, prop: props, mastery: w.mastery || '', magic: w.magic ? 'magic' : 'mundane', src: w.src || 'SRD 5.2' } };
@@ -1284,8 +1294,8 @@
   }
   function itemDetailHtml(it) {
     var w = D.WEAPONS.filter(function (x) { return x.itemId === it.id; })[0];
-    var bits = [it.detail, D.ITEM_TYPE[it.type], it.weight ? it.weight + ' lb' : '', it.value ? it.value + ' gp' : '', it.dmg1 ? it.dmg1 + (it.dmg2 ? '/' + it.dmg2 : '') + ' ' + ({ S: 'slashing', P: 'piercing', B: 'bludgeoning' }[it.dmgType] || it.dmgType || '') : '', it.ac ? 'AC ' + it.ac : '', w && w.mastery ? 'Mastery: ' + w.mastery : ''].filter(Boolean);
-    return '<p class="muted">' + esc(bits.join(' · ')) + '</p>' + fmt(it.text) + '<p class="muted">' + esc(it.src || '') + '</p>';
+    var bits = [it.detail, D.ITEM_TYPE[it.type], it.weight ? it.weight + ' lb' : '', it.value ? it.value + ' gp' : '', itemDamage(it), it.ac ? 'AC ' + it.ac : '', w && w.mastery ? 'Mastery: ' + w.mastery : ''].filter(Boolean);
+    return '<p class="muted">' + dmgHtml(bits.join(' · ')) + '</p>' + fmt(it.text) + '<p class="muted">' + esc(it.src || '') + '</p>';
   }
   function genericDetailHtml(obj, kind) {
     if (kind === 'feat') return (obj.prereqText ? '<p class="muted">Prerequisite: ' + esc(obj.prereqText) + '</p>' : '') + fmt(obj.desc) + '<p class="muted">' + esc(obj.src || 'SRD 5.2') + '</p>';

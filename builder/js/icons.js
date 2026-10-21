@@ -99,6 +99,21 @@
     necromancy: '<path d="M5 11a7 7 0 0 1 14 0c0 2.5-1 4-2.5 5v3h-9v-3C6 15 5 13.5 5 11z"/><circle cx="9.5" cy="11" r="1.5"/><circle cx="14.5" cy="11" r="1.5"/><path d="M10.5 19v-2.5M13.5 19v-2.5"/>',
     transmutation: '<path d="M12 3.5 20.5 18.5h-17z"/><circle cx="12" cy="13.5" r="3"/><path d="M12 3.5v7"/>',
 
+    /* Damage types */
+    dmgAcid: '<path d="M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z"/><circle cx="10" cy="14.5" r="1.3"/><circle cx="14" cy="17" r=".8"/><circle cx="13.5" cy="12" r=".6"/>',
+    dmgBludgeoning: '<circle cx="12" cy="9" r="5"/><path d="M3 21h18M6.5 18.5 5 16.5M12 18v-2.5M17.5 18.5l1.5-2"/>',
+    dmgCold: '<path d="M12 2v20M3.3 7l17.4 10M3.3 17 20.7 7"/><path d="m9.5 3.5 2.5 2 2.5-2M9.5 20.5l2.5-2 2.5 2"/>',
+    dmgFire: '<path d="M12 22c4 0 7-2.8 7-7 0-4-3-6.5-4-10-1.5 2-2 3.5-2 5-1-1-2-2.5-2-4.5C8 8 5 11 5 15c0 4.2 3 7 7 7z"/><path d="M12 22c-1.7 0-3-1.2-3-3 0-2 3-4 3-4s3 2 3 4c0 1.8-1.3 3-3 3z"/>',
+    dmgForce: '<circle cx="12" cy="12" r="2.5"/><circle cx="12" cy="12" r="6" stroke-dasharray="3 2.5"/><path d="M12 2v2.5M12 19.5V22M2 12h2.5M19.5 12H22"/>',
+    dmgLightning: '<path d="M14 2 7 12.5h4.5L9 22l8-11.5h-4.5L15 2z" stroke-linejoin="round"/>',
+    dmgNecrotic: '<path d="M12 20s-7.5-4.5-7.5-10A4 4 0 0 1 12 7.5 4 4 0 0 1 19.5 10C19.5 15.5 12 20 12 20z"/><path d="m12 7.5-1.5 4 3 2-1.5 6.5"/>',
+    dmgPiercing: '<path d="M3 21 15 9"/><path d="M13 5l7-2-2 7z"/><path d="M5 15l4 4"/>',
+    dmgPoison: '<path d="M12 3s-6 7-6 11a6 6 0 0 0 12 0c0-4-6-11-6-11z"/><path d="m9.5 12.5 5 5M14.5 12.5l-5 5"/>',
+    dmgPsychic: '<path d="M12 12a1 1 0 0 1 2 0 2.5 2.5 0 0 1-5 0 4 4 0 0 1 8 0 5.5 5.5 0 0 1-11 0 7 7 0 0 1 14 0"/><path d="M5 18.5 3 21M19 18.5l2 2.5"/>',
+    dmgRadiant: '<circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9 7 7M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/>',
+    dmgSlashing: '<path d="M5 19 17 3M9 21 20 7M3 14 12 2"/>',
+    dmgThunder: '<circle cx="12" cy="12" r="1.5"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',
@@ -196,6 +211,14 @@
     return info && SCHOOL_ICONS[info.school] || null;
   };
   DND.SCHOOL_ICONS = SCHOOL_ICONS;
+
+  var DAMAGE_TYPES = ['acid', 'bludgeoning', 'cold', 'fire', 'force', 'lightning', 'necrotic', 'piercing', 'poison', 'psychic', 'radiant', 'slashing', 'thunder'];
+  // Icon for a damage type name ("fire", "Slashing"), or null.
+  DND.damageIcon = function (type) {
+    var t = String(type || '').toLowerCase().trim();
+    return DAMAGE_TYPES.indexOf(t) >= 0 ? 'dmg' + t.charAt(0).toUpperCase() + t.slice(1) : null;
+  };
+  DND.DAMAGE_TYPES = DAMAGE_TYPES;
 
   var ITEM_TYPE_ICONS = { P: 'potion', RG: 'ring', SC: 'scroll', WD: 'wand', RD: 'rod', ST: 'staff', W: 'wondrous', G: 'gear', $: 'gem', A: 'ammo',
     LA: 'lightArmor', MA: 'mediumArmor', HA: 'heavyArmor', S: 'shield' };
