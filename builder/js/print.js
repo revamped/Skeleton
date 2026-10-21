@@ -118,7 +118,7 @@
       var m = D.monster && D.monster(c.id);
       if (!m) return '';
       var acts = (m.action || []).map(function (a) { return '<b>' + esc(a.name) + '.</b> ' + esc(snip(a.text, full ? 0 : 160)); }).join(' ');
-      return '<div class="ps-comp"><b>' + esc(c.nick || m.name) + '</b> <span class="ps-muted">' + esc((c.nick ? m.name + ', ' : '') + (c.role || '') + (c.qty > 1 ? ' ×' + c.qty : '')) + '</span>' +
+      return '<div class="ps-comp">' + D.icon(D.creatureIcon(m)) + ' <b>' + esc(c.nick || m.name) + '</b> <span class="ps-muted">' + esc((c.nick ? m.name + ', ' : '') + (c.role || '') + (c.qty > 1 ? ' ×' + c.qty : '')) + '</span>' +
         '<p>AC ' + esc(m.ac) + ' · HP ' + esc(m.hp) + ' · Speed ' + esc(m.speed) + ' · CR ' + esc(m.cr) + '</p>' +
         '<p class="ps-muted">' + D.ABILITIES.map(function (a) { return a.toUpperCase() + ' ' + m[a] + ' (' + sign(D.mod(m[a])) + ')'; }).join(' · ') + '</p>' + (acts ? '<p>' + acts + '</p>' : '') + '</div>';
     }).join('');

@@ -946,7 +946,7 @@
       if (!list || !list.length) return '';
       return (title ? '<h4 class="sb-h">' + title + '</h4>' : '') + list.map(function (t) { return '<div class="sb-entry"><b>' + esc(t.name) + '.</b> ' + fmt(t.text).replace(/^<p>/, '<p class="sb-inline">').replace('<p class="sb-inline">', '') + '</div>'; }).join('');
     }
-    return '<div class="statblock"><p class="sb-type">' + esc(line) + '</p>' +
+    return '<div class="statblock"><p class="sb-type">' + ico(D.creatureIcon(m)) + ' ' + esc(line) + '</p>' +
       '<div class="sb-props">' + props.map(function (p) { return '<div><b>' + p[0] + '</b> ' + esc(p[1]) + '</div>'; }).join('') + '</div>' + abilityLine(m) +
       '<div class="sb-props">' + props2.map(function (p) { return '<div><b>' + p[0] + '</b> ' + esc(p[1]) + '</div>'; }).join('') + '</div>' +
       section('', m.trait) + section('Actions', m.action) + section('Bonus Actions', m.bonus) + section('Reactions', m.reaction) + section('Legendary Actions', m.legendary) + section('Mythic Actions', m.mythic) +
@@ -958,7 +958,7 @@
     var sugg = companionSuggestions();
     var cards = list.map(function (c, i) {
       var m = D.monster(c.id);
-      return '<section class="card companion"><div class="card-head"><h3>' + esc(c.nick || (m ? m.name : c.id)) + '</h3>' + (c.nick && m ? '<span class="muted">' + esc(m.name) + '</span>' : '') +
+      return '<section class="card companion"><div class="card-head">' + badge(m ? D.creatureIcon(m) : 'd20') + '<h3>' + esc(c.nick || (m ? m.name : c.id)) + '</h3>' + (c.nick && m ? '<span class="muted">' + esc(m.name) + '</span>' : '') +
         '<span class="pill pill-gold">' + esc(c.role || 'Companion') + '</span>' + (m ? '<span class="muted">CR ' + esc(m.cr) + '</span>' : '<span class="pill pill-todo">not loaded</span>') + '</div>' +
         '<div class="card-body"><div class="gear-grid">' +
         '<div class="field"><label for="cmp-n-' + i + '">Name</label><input type="text" id="cmp-n-' + i + '" data-cmpnick="' + i + '" value="' + esc(c.nick || '') + '" placeholder="' + esc(m ? m.name : '') + '"></div>' +
@@ -968,7 +968,7 @@
         (m ? statBlock(m) : '<p class="desc">This creature comes from a compendium that isn\'t loaded in this browser.</p>') + '</div></section>';
     }).join('');
     var suggestHtml = sugg.length ? '<section class="card"><div class="card-head"><h3>Suggested for this build</h3><span class="muted">From your spells and features at level ' + b.level + '</span></div><div class="card-body"><div class="chips">' +
-      sugg.map(function (x) { return '<button type="button" class="btn btn-small" data-addcmp="' + esc(x.m.id) + '" data-role="' + esc(x.role) + '" title="' + esc(x.why) + '">+ ' + esc(x.m.name) + ' <span class="muted">' + esc(x.role) + '</span></button>'; }).join('') +
+      sugg.map(function (x) { return '<button type="button" class="btn btn-small" data-addcmp="' + esc(x.m.id) + '" data-role="' + esc(x.role) + '" title="' + esc(x.why) + '">' + ico(D.creatureIcon(x.m)) + ' ' + esc(x.m.name) + ' <span class="muted">' + esc(x.role) + '</span></button>'; }).join('') +
       '</div></div></section>' : '';
     return '<div class="toolbar"><h2>Companions &amp; minions</h2><button type="button" class="btn btn-primary" data-openlist="monster">Add a creature</button></div>' +
       '<p class="desc">Track familiars, steeds, summons, animated minions, hirelings, sidekicks and Wild Shape forms with their full stat blocks. ' + (D.MONSTERS || []).length.toLocaleString() + ' creatures available' + (D.CONTENT.user ? ' (SRD + your compendium).' : ' (SRD). Import a compendium in Library for more.') + '</p>' +
@@ -1042,7 +1042,7 @@
       var crs = ['0', '1/8', '1/4', '1/2'].concat(Array.from({ length: 30 }, function (_, i) { return String(i + 1); }));
       opts = (D.MONSTERS || []).map(function (m) {
         var type = (m.type || '').split(/[ ,(]/)[0].toLowerCase();
-        return { id: m.id, label: m.name, meta: (m.cr ? 'CR ' + m.cr + ' · ' : '') + (D.SIZE_NAME[m.size] || m.size || '') + ' ' + m.type + (m.ed === '2024' ? ' · 2024' : ''),
+        return { id: m.id, label: m.name, icon: D.creatureIcon(m), meta: (m.cr ? 'CR ' + m.cr + ' · ' : '') + (D.SIZE_NAME[m.size] || m.size || '') + ' ' + m.type + (m.ed === '2024' ? ' · 2024' : ''),
           search: (m.name + ' ' + m.type).toLowerCase(), cr: D.crValue(m.cr),
           facets: { type: type, size: D.SIZE_NAME[m.size] || m.size, ed: m.ed, src: m.src || '', fly: /fly/i.test(m.speed) ? 'fly' : '', swim: /swim/i.test(m.speed) ? 'swim' : '' } };
       }).sort(function (a, c) { return a.label.localeCompare(c.label); });
@@ -1240,7 +1240,7 @@
     var hits = libMatches(), shown = hits.slice(0, 200);
     return '<p class="muted">' + hits.length.toLocaleString() + ' result' + (hits.length === 1 ? '' : 's') + (hits.length > 200 ? ' · showing the first 200' : '') + '</p>' +
       '<div class="lib-list">' + shown.map(function (e) {
-        var ic = app.lib.cat === 'items' ? D.itemIcon(e.obj) : app.lib.cat === 'species' ? D.speciesIcon(speciesBase(e.obj.name)) : app.lib.cat === 'backgrounds' ? D.backgroundIcon(e.obj.name) : app.lib.cat === 'classes' ? D.classIcon(e.obj) : '';
+        var ic = app.lib.cat === 'items' ? D.itemIcon(e.obj) : app.lib.cat === 'species' ? D.speciesIcon(speciesBase(e.obj.name)) : app.lib.cat === 'backgrounds' ? D.backgroundIcon(e.obj.name) : app.lib.cat === 'classes' ? D.classIcon(e.obj) : app.lib.cat === 'creatures' ? D.creatureIcon(e.obj) : '';
         return '<button type="button" class="lib-row" data-libopen="' + esc(e.id) + '"><b>' + (ic ? ico(ic) + ' ' : '') + esc(e.label) + '</b><span class="muted">' + esc(e.meta) + '</span><span class="lib-src">' + esc(e.src || '') + '</span></button>';
       }).join('') + '</div>';
   }

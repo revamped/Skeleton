@@ -80,6 +80,15 @@
     heavyArmor: '<path d="M6 12a6 6 0 0 1 12 0v8H6z"/><path d="M6 12h12"/><path d="M9.5 15.5h5"/><path d="M12 6v6"/>',
     noArmor: '<circle cx="12" cy="7" r="3"/><path d="M6 21c0-5 2.5-8 6-8s6 3 6 8"/>',
 
+    /* Creature types */
+    aberration: '<circle cx="12" cy="9" r="5.5"/><circle cx="12" cy="9" r="2"/><path d="M8 14c-1 3-3 4-5 4M12 14.5v6.5M16 14c1 3 3 4 5 4M10 14.5c-.5 2.5-1.5 4-3 5.5M14 14.5c.5 2.5 1.5 4 3 5.5"/>',
+    celestial: '<ellipse cx="12" cy="4" rx="3.5" ry="1.3"/><path d="M12 9c-2-2-6-3-9-1 1 4 4 7 9 8 5-1 8-4 9-8-3-2-7-1-9 1z"/><path d="M12 9v11"/>',
+    elemental: '<path d="M12 12a1.5 1.5 0 0 1 3 0 3 3 0 0 1-6 0 4.5 4.5 0 0 1 9 0 6 6 0 0 1-12 0 7.5 7.5 0 0 1 15 0"/>',
+    monstrosity: '<path d="M3 10c3-4.5 15-4.5 18 0v4c-3 4.5-15 4.5-18 0z"/><path d="M6 9.3 7.5 12 9 8.7M15 8.7l1.5 3.3L18 9.3M10.5 8.4 12 11.2l1.5-2.8"/><path d="M7.5 15.2 9 12.8l1.5 2.8M13.5 15.6l1.5-2.8 1.5 2.4"/>',
+    ooze: '<path d="M4 17c0-5 3-11 8-11s8 6 8 11c0 1.5-1 2.5-2 2.5s-1.5-1-2.5-1-1.5 2-3.5 2-2.5-2-3.5-2-1.5 1-2.5 1S4 18.5 4 17z"/><circle cx="10" cy="11.5" r=".8"/><circle cx="14.5" cy="13" r=".8"/>',
+    plant: '<path d="M12 21v-9"/><path d="M12 12C12 7 9 4 4 4c0 5 3 8 8 8z"/><path d="M12 14c0-4 3-7 8-7 0 4-3 7-8 7z"/>',
+    swarm: '<circle cx="7" cy="8" r="2"/><circle cx="16" cy="6.5" r="2"/><circle cx="12" cy="13" r="2"/><circle cx="6" cy="17" r="2"/><circle cx="17.5" cy="16" r="2"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',
@@ -162,6 +171,13 @@
     if (!a || a.type === 'none') return 'noArmor';
     return a.type === 'heavy' ? 'heavyArmor' : a.type === 'medium' ? 'mediumArmor' : 'lightArmor';
   };
+  var CREATURE_RULES = [
+    [/swarm/, 'swarm'], [/aberration/, 'aberration'], [/beast/, 'paw'], [/celestial/, 'celestial'], [/construct|vehicle|droid/, 'construct'],
+    [/dragon/, 'dragonborn'], [/elemental/, 'elemental'], [/fey/, 'fey'], [/fiend|demon|devil/, 'horns'], [/giant/, 'goliath'],
+    [/humanoid/, 'human'], [/monstrosity/, 'monstrosity'], [/ooze/, 'ooze'], [/plant/, 'plant'], [/undead/, 'skull']
+  ];
+  DND.creatureIcon = function (m) { return match(m && m.type, CREATURE_RULES, 'd20'); };
+
   var ITEM_TYPE_ICONS = { P: 'potion', RG: 'ring', SC: 'scroll', WD: 'wand', RD: 'rod', ST: 'staff', W: 'wondrous', G: 'gear', $: 'gem', A: 'ammo',
     LA: 'lightArmor', MA: 'mediumArmor', HA: 'heavyArmor', S: 'shield' };
   DND.itemIcon = function (it) {
