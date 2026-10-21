@@ -114,6 +114,23 @@
     dmgSlashing: '<path d="M5 19 17 3M9 21 20 7M3 14 12 2"/>',
     dmgThunder: '<circle cx="12" cy="12" r="1.5"/><path d="M8.5 8.5a5 5 0 0 0 0 7M15.5 8.5a5 5 0 0 1 0 7M5.5 5.5a9.2 9.2 0 0 0 0 13M18.5 5.5a9.2 9.2 0 0 1 0 13"/>',
 
+    /* Conditions */
+    blinded: '<path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12z"/><circle cx="12" cy="12" r="3"/><path d="M4 20 20 4"/>',
+    charmed: '<path d="M12 20s-7.5-4.5-7.5-10A4 4 0 0 1 12 7.5 4 4 0 0 1 19.5 10C19.5 15.5 12 20 12 20z"/><path d="M3 21 9.5 14.5M21 3l-6.5 6.5M18 3h3v3"/>',
+    deafened: '<path d="M7 9a5 5 0 0 1 10 0c0 3-3 4-3 7a3 3 0 0 1-5.5 1.5"/><path d="M10 9a2 2 0 0 1 4 0"/><path d="M4 20 20 4"/>',
+    exhaustion: '<rect x="2.5" y="7" width="17" height="10" rx="2"/><path d="M22 10.5v3"/><path d="M5.5 10v4"/>',
+    frightened: '<circle cx="12" cy="12" r="9"/><circle cx="9" cy="10" r="1.5"/><circle cx="15" cy="10" r="1.5"/><path d="M8 16.5c1-1 2-1 3 0s2 1 3 0 1.5-.8 2 0"/>',
+    grappled: '<path d="M7 11V6a1.5 1.5 0 0 1 3 0v5M10 10V4.5a1.5 1.5 0 0 1 3 0V10M13 10V5.5a1.5 1.5 0 0 1 3 0V11M16 11V8a1.5 1.5 0 0 1 3 0v6a7 7 0 0 1-7 7h-1a6 6 0 0 1-5-3l-2.5-4.5a1.5 1.5 0 0 1 2.5-1.5L7 14"/>',
+    incapacitated: '<path d="M8 2.5h8l5.5 5.5v8L16 21.5H8L2.5 16V8z"/><path d="M7.5 12h9"/>',
+    invisible: '<circle cx="12" cy="6.5" r="3.5" stroke-dasharray="2.2 2"/><path d="M4.5 21a7.5 7.5 0 0 1 15 0" stroke-dasharray="2.2 2"/>',
+    paralyzed: '<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/><circle cx="12" cy="16" r="1.3"/>',
+    petrified: '<path d="M3 17 6 9l5-4 6 1.5 4 6.5-2 6H6z"/><path d="m11 5 1.5 5-3.5 3M12.5 10l4.5 1.5M9 13l1 6"/>',
+    poisoned: '<path d="M10 2.5h4M10.5 2.5V7L6 14a4.5 4.5 0 0 0 4 7h4a4.5 4.5 0 0 0 4-7l-4.5-7V2.5"/><path d="m10 13 4 4M14 13l-4 4"/>',
+    prone: '<circle cx="5" cy="14.5" r="2.3"/><path d="M8.5 16h12M11.5 16l2-3.5h3.5"/><path d="M2 19.5h20"/>',
+    restrained: '<rect x="2.5" y="8.5" width="11" height="7" rx="3.5"/><rect x="10.5" y="8.5" width="11" height="7" rx="3.5"/>',
+    stunned: '<path d="M9.5 3 11 7.5l4.5 1.5-4.5 1.5L9.5 15 8 10.5 3.5 9 8 7.5z"/><path d="m17.5 13 .9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9zM18 3.5v3M16.5 5h3"/>',
+    unconscious: '<path d="M4 5h6l-6 7h6M13 11h4.5l-4.5 5h4.5M19 17h3l-3 3.5h3"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',
@@ -219,6 +236,12 @@
     return DAMAGE_TYPES.indexOf(t) >= 0 ? 'dmg' + t.charAt(0).toUpperCase() + t.slice(1) : null;
   };
   DND.DAMAGE_TYPES = DAMAGE_TYPES;
+
+  // Icon for a condition name ("Prone", "frightened"), or null.
+  DND.conditionIcon = function (name) {
+    var k = String(name || '').toLowerCase().trim();
+    return /^(blinded|charmed|deafened|exhaustion|frightened|grappled|incapacitated|invisible|paralyzed|petrified|poisoned|prone|restrained|stunned|unconscious)$/.test(k) ? k : null;
+  };
 
   var ITEM_TYPE_ICONS = { P: 'potion', RG: 'ring', SC: 'scroll', WD: 'wand', RD: 'rod', ST: 'staff', W: 'wondrous', G: 'gear', $: 'gem', A: 'ammo',
     LA: 'lightArmor', MA: 'mediumArmor', HA: 'heavyArmor', S: 'shield' };
