@@ -231,6 +231,7 @@
     var rs = ev ? ev.ruleset : '2024';
     return (kind === 'background' ? D.BACKGROUNDS : kind === 'class' ? D.CLASSES : D.SPECIES).filter(function (x) { return D.allowedIn(x, rs); });
   }
+  function allowedSubs(cls) { return (cls.subclasses || []).filter(function (sc) { return D.allowedIn(sc, ev ? ev.ruleset : '2024'); }); }
   function speciesGroups(kind) {
     kind = kind || 'species';
     var groups = {}, order = [];
@@ -259,7 +260,8 @@
     if (!cls.subclasses || !cls.subclasses.length) return '';
     var key = cls.id + '.subclass', val = b.choices[key];
     var groups = [['Built in (2024 SRD)', []], ['From your compendium', []]];
-    cls.subclasses.forEach(function (sc) { groups[sc.compendium ? 1 : 0][1].push(sc); });
+    var subs = cls.subclasses.filter(function (sc) { return D.allowedIn(sc, ev.ruleset) || sc.id === val; });
+    subs.forEach(function (sc) { groups[sc.compendium ? 1 : 0][1].push(sc); });
     groups = groups.filter(function (g) { return g[1].length; });
     var needs = !val;
     return '<div class="subfield' + (needs ? ' todo' : '') + '"><label for="f-subclass">' + esc(cls.subclassLabel || 'Subclass') + ' · level ' + (cls.subclassLevel || 3) +
@@ -267,7 +269,7 @@
       groups.map(function (g) {
         var inner = g[1].map(function (sc) { return '<option value="' + esc(sc.id) + '"' + (sc.id === val ? ' selected' : '') + '>' + esc(sc.name) + '</option>'; }).join('');
         return groups.length > 1 ? '<optgroup label="' + esc(g[0]) + '">' + inner + '</optgroup>' : inner;
-      }).join('') + '</select><span class="muted sub-count">' + cls.subclasses.length + ' subclass' + (cls.subclasses.length === 1 ? '' : 'es') + ' for ' + esc(cls.name) + '</span></div>';
+      }).join('') + '</select><span class="muted sub-count">' + subs.length + ' subclass' + (subs.length === 1 ? '' : 'es') + ' for ' + esc(cls.name) + '</span></div>';
   }
   function backgroundSubField() { return versionField('background', ev.background, cur().backgroundId, 'f-subbg'); }
   function classVersionField() { return versionField('class', ev.cls, cur().classId, 'f-classver'); }
@@ -429,7 +431,7 @@
       (n.missing ? '<span class="pill pill-todo">' + n.missing + ' to choose</span>' : '<span class="pill pill-ok">complete</span>') +
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
-      pickerField('f-class', 'Class', 'class', pool('class'), b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; },
+      pickerField('f-class', 'Class', 'class', pool('class'), b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + allowedSubs(c).length + ' subclasses'; },
         { title: classBase(ev.cls.name), icon: D.classIcon(ev.cls), count: speciesGroups('class').order.length, after: classVersionField() + classSubField() }) +
       pickerField('f-species', 'Species', 'species', pool('species'), b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
         { title: speciesBase(ev.species.name), icon: D.speciesIcon(speciesBase(ev.species.name)), count: speciesGroups().order.length, after: subspeciesField() }) +
@@ -1422,7 +1424,7 @@
         g.list.forEach(function (x) {
           var sr = x.src || 'SRD 5.2'; if (srcs.indexOf(sr) < 0) srcs.push(sr);
           var r = rulesGroup(x); if (rules.indexOf(r) < 0) rules.push(r);
-          subs += x.subclasses.length;
+          subs += allowedSubs(x).length;
         });
         var first = g.list[0];
         var variants = g.list.map(function (x) { return x.compendium ? variantLabel(x, 'class').replace(/^Standard \((.*)\)$/, '$1') : '2024'; });
@@ -1478,7 +1480,7 @@
     if (kind === 'class' || kind === 'species' || kind === 'background') {
       var list = pool(kind);
       opts = list.map(function (x) {
-        var meta = kind === 'class' ? 'd' + x.hd + ' · ' + x.subclasses.length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
+        var meta = kind === 'class' ? 'd' + x.hd + ' · ' + allowedSubs(x).length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
           kind === 'species' ? (x.size || '') + ' · Speed ' + x.speed + (x.darkvision ? ' · Darkvision ' + x.darkvision : '') :
           x.custom ? 'any abilities' : x.legacy ? '2014 background' : 'Feat: ' + (x.featName || '');
         return { id: x.id, label: x.name, group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2, meta: meta + (x.src ? ' · ' + x.src : ''),
