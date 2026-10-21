@@ -206,11 +206,68 @@
     groups.slice(1).forEach(function (g) { g[1].sort(function (a, b) { return a.name.localeCompare(b.name); }); });
     return groups.filter(function (g) { return g[1].length; });
   }
-  function pickerField(id, label, kind, list, value, descFn) {
+  function pickerField(id, label, kind, list, value, descFn, opts) {
+    opts = opts || {};
     var curItem = find(list, value);
     return '<div class="field"><label for="' + id + '">' + label + '</label><button type="button" id="' + id + '" class="btn picker-btn" data-openlist="' + kind + '">' +
-      '<span>' + esc(curItem ? curItem.name : 'Choose…') + '</span><span class="muted">' + list.length + ' ▾</span></button>' +
+      '<span>' + esc(opts.title || (curItem ? curItem.name : 'Choose…')) + '</span><span class="muted">' + (opts.count || list.length) + ' ▾</span></button>' +
+      (opts.after || '') +
       (descFn && curItem ? '<p class="desc">' + esc(descFn(curItem)) + (curItem.src ? ' · ' + esc(curItem.src) : '') + '</p>' : '') + '</div>';
+  }
+
+  /* ---------- Species grouped by base name (Gnome → Forest, Rock, Deep…) ---------- */
+
+  function speciesBase(name) { return name.split(/,| \(| of /)[0].trim(); }
+  function speciesGroups() {
+    var groups = {}, order = [];
+    D.SPECIES.forEach(function (sp) {
+      var base = speciesBase(sp.name), key = base.toLowerCase();
+      if (!groups[key]) { groups[key] = { key: key, name: base, list: [] }; order.push(key); }
+      groups[key].list.push(sp);
+    });
+    order.forEach(function (k) {
+      groups[k].list.sort(function (a, c) {
+        var ra = !a.compendium ? 0 : a.ed === '2024' ? 1 : 2, rc = !c.compendium ? 0 : c.ed === '2024' ? 1 : 2;
+        return ra - rc || a.name.localeCompare(c.name);
+      });
+    });
+    return { map: groups, order: order };
+  }
+  function variantLabel(sp) {
+    var rest = sp.name.slice(speciesBase(sp.name).length).replace(/^,\s*/, '').trim();
+    if (!rest) return 'Standard';
+    return rest[0] === '(' ? 'Standard ' + rest : rest;
+  }
+  // A built-in species' lineage-style choice (Elf lineage, Gnome lineage, Tiefling legacy, ancestries).
+  function lineageSpec(sp) {
+    return !sp.compendium && (sp.choices || []).filter(function (c) { return /^(lineage|legacy|ancestry)$/.test(c.id) && Array.isArray(c.options); })[0] || null;
+  }
+  function subspeciesField() {
+    var b = cur(), sp = ev.species;
+    var g = speciesGroups().map[speciesBase(sp.name).toLowerCase()];
+    if (!g) return '';
+    var lin = lineageSpec(sp);
+    var linKey = lin ? 'sp.' + sp.id + '.' + lin.id : null;
+    var curVal = b.speciesId + (lin && b.choices[linKey] ? '|' + b.choices[linKey] : '');
+    var groups = [];
+    g.list.forEach(function (x) {
+      var gl = !x.compendium ? '2024 rules (built in)' : x.ed === '2024' ? 'Compendium · 2024' : 'Compendium · 2014 and other';
+      var last = groups[groups.length - 1];
+      if (!last || last.label !== gl) groups.push(last = { label: gl, opts: [] });
+      var ls = lineageSpec(x);
+      if (ls) ls.options.forEach(function (o) { last.opts.push([x.id + '|' + o.id, o.label]); });
+      else last.opts.push([x.id, variantLabel(x) + (x.compendium && x.src ? ' — ' + x.src : '')]);
+    });
+    var total = groups.reduce(function (n, gr) { return n + gr.opts.length; }, 0);
+    if (total < 2) return '';
+    var needs = lin && !b.choices[linKey];
+    return '<div class="subfield' + (needs ? ' todo' : '') + '"><label for="f-subspecies">' + (lin ? esc(lin.label) : 'Subrace') + ' · ' + esc(g.name) +
+      (needs ? ' <span class="pill pill-todo">choose</span>' : '') + '</label>' +
+      '<select id="f-subspecies">' + (needs ? '<option value="">— Choose —</option>' : '') + groups.map(function (gr) {
+        var inner = gr.opts.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === curVal ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join('');
+        return groups.length > 1 ? '<optgroup label="' + esc(gr.label) + '">' + inner + '</optgroup>' : inner;
+      }).join('') + '</select>' +
+      '<span class="muted sub-count">' + total + ' option' + (total === 1 ? '' : 's') + ' for ' + esc(g.name) + '</span></div>';
   }
   function selectField(id, label, list, value, descFn) {
     var groups = contentGroups(list);
@@ -252,12 +309,14 @@
     var points = method === 'pointbuy' ? '<span class="pill ' + (ev.pointsSpent > 27 ? 'pill-todo' : 'pill-ok') + '">' + (ev.pointsSpent >= 99 ? '?' : ev.pointsSpent) + ' / 27 points</span>' : '';
     var abIssues = ev.abilityIssues.length ? '<ul class="warn-list">' + ev.abilityIssues.map(function (i) { return '<li>' + esc(i) + '</li>'; }).join('') + '</ul>' : '';
 
+    var linSpec = lineageSpec(ev.species), linKey = linSpec ? 'sp.' + ev.species.id + '.' + linSpec.id : null;
     var originBlocks = ev.origin.map(function (o) {
+      var shownChoices = o.choices.filter(function (c) { return c.key !== linKey; });
       var traits = o.traits && o.traits.length ? '<dl class="traits">' + o.traits.map(function (t) {
         return '<div><dt>' + esc(t[0]) + '</dt><dd>' + longText(t[1]) + '</dd></div>';
       }).join('') + '</dl>' : '';
       return '<div class="field"><span class="label">' + esc(o.kind) + ': ' + esc(o.name) + '</span>' + traits +
-        (o.choices.length ? '<div class="children" style="display:grid;gap:8px">' + o.choices.map(renderChoice).join('') + '</div>' : '') + '</div>';
+        (shownChoices.length ? '<div class="children" style="display:grid;gap:8px">' + shownChoices.map(renderChoice).join('') + '</div>' : '') + '</div>';
     }).join('');
 
     var n = ev.originIssues;
@@ -266,7 +325,8 @@
       '<span class="muted">Class, species, background, and ability scores</span></div><div class="card-body">' +
       '<div class="grid-3">' +
       pickerField('f-class', 'Class', 'class', D.CLASSES, b.classId, function (c) { return 'd' + c.hd + ' Hit Die · Primary: ' + c.primary + ' · Saves: ' + (c.saves.map(abbr).join(', ') || '—') + ' · ' + c.subclasses.length + ' subclasses'; }) +
-      pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); }) +
+      pickerField('f-species', 'Species', 'species', D.SPECIES, b.speciesId, function (s) { return s.size + ' · Speed ' + s.speed + ' ft' + (s.darkvision ? ' · Darkvision ' + s.darkvision + ' ft' : ''); },
+        { title: speciesBase(ev.species.name), count: speciesGroups().order.length, after: subspeciesField() }) +
       pickerField('f-bg', 'Background', 'background', D.BACKGROUNDS, b.backgroundId, function (g) {
         if (g.custom) return 'Any three abilities, Origin feat, two skills';
         if (g.legacy) return '2014 background: skills ' + (g.skills.map(function (k) { return D.SKILLS[k].name; }).join(', ') || '—');
@@ -874,6 +934,28 @@
         { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
         sourceFilter(opts)] };
     }
+    if (kind === 'species') {
+      var sg = speciesGroups();
+      opts = sg.order.map(function (k) {
+        var g = sg.map[k];
+        var sizes = [], srcs = [], rules = [];
+        g.list.forEach(function (x) {
+          if (x.size && sizes.indexOf(x.size) < 0) sizes.push(x.size);
+          var sr = x.src || 'SRD 5.2'; if (srcs.indexOf(sr) < 0) srcs.push(sr);
+          var r = rulesGroup(x); if (rules.indexOf(r) < 0) rules.push(r);
+        });
+        var builtin = g.list.filter(function (x) { return !x.compendium; })[0];
+        var lin = builtin && lineageSpec(builtin);
+        var nOpts = g.list.length - (builtin ? 1 : 0) + (builtin ? (lin ? lin.options.length : 1) : 0);
+        var variants = g.list.map(variantLabel).filter(function (v) { return v !== 'Standard'; });
+        return { id: 'base:' + k, label: g.name, group: builtin ? '2024 rules (built in)' : 'More species', order: builtin ? 0 : 1,
+          meta: nOpts > 1 ? nOpts + ' options' + (variants.length ? ': ' + variants.slice(0, 4).join(', ') + (variants.length > 4 ? '…' : '') : '') : (g.list[0].size || '') + ' · ' + (g.list[0].src || 'SRD 5.2'),
+          search: (g.name + ' ' + g.list.map(function (x) { return x.name + ' ' + (x.src || ''); }).join(' ')).toLowerCase(),
+          facets: { rules: rules, size: sizes, src: srcs } };
+      }).sort(function (a, c) { return a.order - c.order || a.label.localeCompare(c.label); });
+      return { title: 'Choose a species', current: 'base:' + speciesBase(ev.species.name).toLowerCase(), options: opts,
+        filters: [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, { id: 'size', label: 'Size', values: facetValues(opts, 'size') }, sourceFilter(opts)] };
+    }
     if (kind === 'class' || kind === 'species' || kind === 'background') {
       var list = kind === 'class' ? D.CLASSES : kind === 'species' ? D.SPECIES : D.BACKGROUNDS;
       opts = list.map(function (x) {
@@ -902,7 +984,10 @@
     if (kind === 'armor') b.gear.armor = id;
     if (kind === 'shield') b.gear.shield = id === 'none' ? false : id;
     if (kind === 'class') setClass(id);
-    if (kind === 'species') b.speciesId = id;
+    if (kind === 'species') {
+      var g = speciesGroups().map[id.replace(/^base:/, '')];
+      if (g && !g.list.some(function (x) { return x.id === b.speciesId; })) b.speciesId = g.list[0].id;
+    }
     if (kind === 'background') b.backgroundId = id;
     if (kind === 'item') {
       b.inventory = b.inventory || [];
@@ -1201,6 +1286,13 @@
     }
     if (t.dataset.mfilter) { app.modal.f[t.dataset.mfilter] = t.value; app.modal.limit = 150; renderModal(); return; }
     if (t.id === 'f-species') { b.speciesId = t.value; commit(); return; }
+    if (t.id === 'f-subspecies' && t.value) {
+      var parts = t.value.split('|');
+      b.speciesId = parts[0];
+      var ls = lineageSpec(find(D.SPECIES, parts[0]) || {});
+      if (ls && parts[1]) b.choices['sp.' + parts[0] + '.' + ls.id] = parts[1];
+      commit(); return;
+    }
     if (t.id === 'f-bg') { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
     if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }

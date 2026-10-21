@@ -348,3 +348,10 @@ input.qty { width: 4.5em; text-align: center; }
   .dialog-filters { max-height: 30vh; overflow-y: auto; }
   .mini-field { flex-basis: calc(50% - 8px); }
 }
+
+/* ---------- Subrace dropdown under the species picker ---------- */
+.subfield { display: grid; gap: 4px; margin: 6px 0 2px 14px; padding: 6px 0 6px 12px; border-left: 2px solid var(--accent); max-width: 406px; }
+.subfield.todo { border-left-color: var(--bad); }
+.subfield label { font-size: .85rem; font-weight: 700; color: var(--muted); display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.subfield select { width: 100%; }
+.sub-count { font-size: .78rem; }
