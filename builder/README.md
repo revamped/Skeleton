@@ -59,7 +59,8 @@ Shown with the Game Master or Player + GM profile.
 - **Party**: link characters saved in the app (their level, AC, HP, initiative and Passive Perception follow the character) or add players by hand. With no party set up, encounters use a quick party of N characters at one level.
 - **Encounters**: build encounters from the bestiary. The creature list shows CR and XP and can filter to what still fits the Low, Moderate or High budget.
   - **Difficulty** follows the 2024 encounter rules: each character has an XP budget by level for Low, Moderate and High difficulty; the party's budget is the sum, and the creatures' XP is spent against it. There are no multipliers for group size.
-  - A meter shows where the encounter lands, the XP each character earns, and cautions from the encounter guidance: more than two creatures per character, a creature whose CR is above the party's level, and very small parties.
+  - A meter shows where the encounter lands, the XP each character earns, and cautions from the rules' troubleshooting guidance: more than two creatures per character, a creature whose CR is above the party's level, many CR 0 creatures, and more than three stat blocks.
+  - The budget table was checked row by row against the SRD 5.2 text, and the SRD's three worked examples give the same totals here. The rules assume one party level; for mixed-level parties each character's budget uses their own level.
 - **Run**: an initiative tracker for the chosen encounter.
   - Starting it rolls initiative for the creatures (identical creatures can share a roll) and can roll their Hit Points instead of using the average. Enter the players' rolls, or roll for the blanks.
   - Each combatant has HP with Hit and Heal, conditions with their icons, and Defeat/Revive. **Next turn** skips defeated creatures and counts rounds.
