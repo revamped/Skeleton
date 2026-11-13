@@ -20,6 +20,8 @@
   // github.com/o/r[/tree|blob/ref/path] or raw.githubusercontent.com/o/r/ref/path
   DND.parseGitHubUrl = function (url) {
     var u = String(url || '').trim().replace(/[?#].*$/, '').replace(/\.git$/, '').replace(/\/+$/, '');
+    try { decodeURIComponent(u); } catch (e) { return null; }   // a stray % isn't a usable link
+    u = u.replace(/^((?:https?:\/\/)?(?:www\.)?github\.com\/[^/]+\/[^/]+)\/raw\//i, '$1/blob/');
     var m = /^(?:https?:\/\/)?raw\.githubusercontent\.com\/([^/]+)\/([^/]+)\/([^/]+)\/(.+)$/i.exec(u);
     if (m) return { owner: m[1], repo: m[2], ref: m[3], path: decodeURIComponent(m[4]), kind: 'file' };
     m = /^(?:https?:\/\/)?(?:www\.)?github\.com\/([^/]+)\/([^/]+)(?:\/(tree|blob)\/([^/]+)(?:\/(.*))?)?$/i.exec(u);
@@ -59,6 +61,7 @@
   DND.githubListing = function (url) {
     var src = DND.parseGitHubUrl(url);
     if (!src) return Promise.reject(new Error('That isn\'t a GitHub link. Use https://github.com/owner/repository.'));
+    if (src.kind === 'file' && !/\.xml$/i.test(src.path)) return Promise.reject(new Error('That link is a file, but not an .xml compendium file.'));
     if (src.kind === 'file') return Promise.resolve({ src: src, collections: [src.path], direct: true });
     var refP = src.ref ? Promise.resolve(src.ref) : getJSON(API + src.owner + '/' + src.repo).then(function (r) { return r.default_branch; });
     return refP.then(function (ref) {
@@ -102,6 +105,8 @@
             next();
           });
         }
+        // The queue may have held only files already fetched: nothing is running, so finish.
+        if (!queue.length && !active) next();
       }
       next();
     });

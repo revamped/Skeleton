@@ -8,7 +8,7 @@
   /* ---------- Dice ---------- */
 
   // Matches dice expressions in text: "1d20 + 5", "8d6", "2d8+3", "d10".
-  DND.DICE_RE = /\b(\d*d(?:4|6|8|10|12|20|100))(\s*[+−-]\s*\d+(?!d))?\b/gi;
+  DND.DICE_RE = /\b(\d*d(?:4|6|8|10|12|20|100))(?!\s*(?:Tests?|rolls?)\b)(\s*[+−-]\s*\d+(?!d))?\b/gi;
 
   function randInt(n) {
     if (G.crypto && G.crypto.getRandomValues) {
@@ -70,7 +70,9 @@
     return { reset: 'long' };
   }
   var WORD_N = { once: 1, twice: 2, two: 2, three: 3, four: 4, five: 5 };
-  var ABIL = { strength: 'str', dexterity: 'dex', constitution: 'con', intelligence: 'int', wisdom: 'wis', charisma: 'cha' };
+  var ABIL = { strength: 'str', dexterity: 'dex', constitution: 'con', intelligence: 'int', wisdom: 'wis', charisma: 'cha',
+    str: 'str', dex: 'dex', con: 'con', int: 'int', wis: 'wis', cha: 'cha' };
+  var AB_WORD = '(Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma|Str|Dex|Con|Int|Wis|Cha)';
   function stem(n) { return String(n).toLowerCase().replace(/\s*\((two|three|four) uses\)$/, '').replace(/s$/, '').trim(); }
 
   // Everything a character spends and recovers at the viewed level.
@@ -96,7 +98,12 @@
     // Features, traits and feats with limited uses or a once-per-turn limit.
     var texts = [];
     ev.levels.slice(0, build.level).forEach(function (l) { l.features.forEach(function (f) { texts.push([f.name, f.desc || '', 'Feature']); }); });
-    ev.species.traits.forEach(function (t) { texts.push([t[0], t[1] || '', 'Species']); });
+    ev.species.traits.forEach(function (t) {
+      // "Draconic Flight (level 5)": a trait gained at a later level.
+      var gate = /\s*\(level (\d+)\)\s*$/i.exec(t[0]);
+      if (gate && build.level < +gate[1]) return;
+      texts.push([gate ? t[0].slice(0, gate.index) : t[0], t[1] || '', 'Species']);
+    });
     s.feats.forEach(function (f) { texts.push([f.name, f.desc || '', 'Feat']); });
     texts.forEach(function (t) {
       var name = t[0], txt = t[1], m;
@@ -111,8 +118,8 @@
       if (/once per turn|once on each of your turns|once on each of its turns/i.test(txt)) turn.push({ id: 'turn:' + name, name: name });
       var uses = 0;
       if ((m = /\((two|three|four) uses\)/i.exec(name))) uses = WORD_N[m[1].toLowerCase()];
-      else if (/(number of times|uses?) equal to your Proficiency Bonus|Proficiency Bonus (number of )?times/i.test(txt)) uses = d.pb;
-      else if ((m = /(?:number of times|uses?) equal to your (Strength|Dexterity|Constitution|Intelligence|Wisdom|Charisma) modifier/i.exec(txt))) uses = Math.max(1, d.mods[ABIL[m[1].toLowerCase()]]);
+      else if (/(number of times|uses?) equal to your Proficiency Bonus|Proficiency Bonus (number of )?times|Uses = (PB|Proficiency Bonus)\b|\bPB times per/i.test(txt)) uses = d.pb;
+      else if ((m = new RegExp('(?:number of times|uses?) equal to your ' + AB_WORD + ' modifier|Uses = ' + AB_WORD + ' mod|\\b' + AB_WORD + ' mod(?:ifier)? times per', 'i').exec(txt))) uses = Math.max(1, d.mods[ABIL[(m[1] || m[2] || m[3]).toLowerCase()]]);
       else if ((m = /\b(once|twice) per (?:Short or Long|Long|Short) Rest|\b(once|twice) per day\b|(two|three) times per (?:Short or Long|Long) Rest/i.exec(txt))) uses = WORD_N[(m[1] || m[2] || m[3]).toLowerCase()];
       else if (/can't (?:do so|use (?:it|this feature)) again until you finish a (?:Short or )?Long Rest|regain (?:all )?expended uses? (?:of it )?when you finish a (?:Short or )?Long Rest/i.test(txt)) uses = 1;
       if (!uses) return;
@@ -133,21 +140,31 @@
   /* ---------- Spell damage ---------- */
 
   // The main damage or healing dice in a spell's text, with cantrip scaling and the upcast step.
+  // Returns null when the text has no damage or healing roll of its own (True Strike, Shillelagh).
   DND.spellDice = function (sp, charLevel) {
-    var txt = sp && sp.text || '';
-    var m = /(\d+d\d+(?:\s*\+\s*\d+(?!d))?)(?:\s*\+\s*your spellcasting ability modifier)?\s+(\w+)\s+damage/i.exec(txt) ||
-      /regains? (?:a number of )?Hit Points? equal to (\d+d\d+)/i.exec(txt) || /(\d+d\d+)/.exec(txt);
-    if (!m) return null;
-    var dice = m[1].replace(/\s+/g, ''), type = /damage/i.test(m[0]) ? m[2].toLowerCase() : /Hit Points/i.test(m[0]) ? 'healing' : '';
-    if (/plus your spellcasting ability modifier|\+ your spellcasting ability modifier/i.test(m[0] + txt.slice(m.index, m.index + m[0].length + 45))) dice += '+MOD';
-    var step = null;
+    var txt = sp && sp.text || '', type = '', m, dice;
+    var D1 = '(\\d+d\\d+(?:\\s*\\+\\s*\\d+(?!d))?)';
+    if ((m = new RegExp(D1 + '(?:\\s*(?:\\+|plus)\\s*your spellcasting ability modifier)?\\s+(\\w+)\\s+damage', 'i').exec(txt))) type = m[2].toLowerCase();
+    else if ((m = new RegExp('(\\w+) damage equal to ' + D1, 'i').exec(txt))) { type = m[1].toLowerCase(); m[1] = m[2]; }
+    else if ((m = new RegExp('takes ' + D1 + ' damage', 'i').exec(txt))) type = '';
+    else if ((m = new RegExp('regains? (?:a number of )?Hit Points? equal to ' + D1 + '|regains? ' + D1 + ' Hit Points?', 'i').exec(txt))) { type = 'healing'; m[1] = m[1] || m[2]; }
+    else if ((m = new RegExp('gains? ' + D1 + ' Temporary Hit Points?', 'i').exec(txt))) type = 'temporary HP';
+    else return null;
+    if (/^(less|more|extra|additional|bonus)$/.test(type)) return null;   // a modifier to other damage, not a roll of its own
+    dice = m[1].replace(/\s+/g, '');
+    if (/^\s*(?:\+|plus) your spellcasting ability modifier/i.test(txt.slice(m.index + m[0].length, m.index + m[0].length + 45)) || /(?:\+|plus)\s*your spellcasting ability modifier/i.test(m[0])) dice += '+MOD';
+    var step = null, base = /^(\d+)d(\d+)/.exec(dice);
     if (sp.level) {
-      var u = /(?:increases|increase) by (\d+d\d+) for each (?:spell )?slot level above/i.exec(txt);
-      if (u) step = u[1];
-    } else {
-      var tier = charLevel >= 17 ? 4 : charLevel >= 11 ? 3 : charLevel >= 5 ? 2 : 1, mm = /^(\d+)d(\d+)/.exec(dice);
-      // Beam and ray cantrips (Eldritch Blast) add attacks instead of dice.
-      if (mm && !/\bbeams?\b|\brays?\b/i.test(txt) && /cantrip upgrade|increases by (?:one )?(?:die|\d+d\d+) when you reach level 5/i.test(txt)) dice = dice.replace(/^\d+d/, +mm[1] * tier + 'd');
+      // Prefer the upcast step that uses the same die as the base roll (Arcane Hand lists several).
+      var up = (/[^\n]*for (?:each|every) (?:spell )?slot level above[^\n]*/i.exec(txt) || [''])[0], re = /increases? by (\d+d\d+)/gi, u, all = [];
+      while ((u = re.exec(up))) all.push(u[1]);
+      step = all.filter(function (x) { return base && x.split('d')[1] === base[2]; })[0] || all[0] || null;
+      if (!step && (u = /(\d+d\d+) for (?:each|every) (?:spell )?slot level above/i.exec(up))) step = u[1];
+      if (!step && (u = /(\d+) additional (?:Temporary )?Hit Points? for (?:each|every) (?:spell )?slot level above/i.exec(txt))) step = u[1];
+    } else if (base && /Cantrip Upgrade:\s*The damage increases by/i.test(txt)) {
+      // Cantrips that add beams instead (Eldritch Blast) keep their dice.
+      var tier = charLevel >= 17 ? 4 : charLevel >= 11 ? 3 : charLevel >= 5 ? 2 : 1;
+      dice = dice.replace(/^\d+d/, +base[1] * tier + 'd');
     }
     return { dice: dice, type: type, step: step };
   };
@@ -156,6 +173,7 @@
     if (!info) return '';
     var dice = info.dice, extra = info.step && slotLevel > spellLevel ? slotLevel - spellLevel : 0;
     if (!extra) return dice;
+    if (/^\d+$/.test(info.step)) return dice + '+' + extra * +info.step;
     var st = /^(\d+)d(\d+)$/.exec(info.step), base = /^(\d+)d(\d+)/.exec(dice);
     if (st && base && st[2] === base[2]) return dice.replace(/^\d+d/, (+base[1] + extra * +st[1]) + 'd');
     return dice + '+' + (extra * +(st ? st[1] : 1)) + 'd' + (st ? st[2] : 6);

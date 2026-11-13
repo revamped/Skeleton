@@ -698,6 +698,7 @@
     } else {
       DND.COMPENDIUM_FEATS = [];
     }
+    if (DND.syncCustomMonsters) DND.syncCustomMonsters();
     DND.CONTENT.version = (DND.CONTENT.version || 0) + 1;
   };
 
@@ -719,6 +720,7 @@
         var tx = db.transaction(STORE, mode), st = tx.objectStore(STORE), out = fn(st);
         tx.oncomplete = function () { resolve(out && out.result); };
         tx.onerror = function () { reject(tx.error); };
+        tx.onabort = function () { reject(tx.error || new Error('Storage is full')); };
       });
     });
   }

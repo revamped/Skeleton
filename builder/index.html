@@ -22,23 +22,24 @@
 <header class="topbar">
   <div class="topbar-inner">
     <div class="brand"><span class="brand-mark" aria-hidden="true"><span>20</span></span><span class="brand-name">Levelwright</span></div>
+    <div class="profile-box"><label class="sr" for="profile-select">Profile</label><select id="profile-select" title="Profile: which tools you see"></select></div>
     <div class="buildbar">
       <label class="sr" for="build-select">Saved builds</label>
-      <select id="build-select"></select>
+      <select id="build-select" class="pc-only"></select>
       <label class="sr" for="build-name">Character name</label>
-      <input id="build-name" type="text" maxlength="60" placeholder="Character name">
+      <input id="build-name" class="pc-only" type="text" maxlength="60" placeholder="Character name">
       <div class="actions">
-        <button type="button" class="btn" data-action="new">New</button>
-        <button type="button" class="btn" data-action="copy">Duplicate</button>
+        <button type="button" class="btn pc-only" data-action="new">New</button>
+        <button type="button" class="btn pc-only" data-action="copy">Duplicate</button>
         <button type="button" class="btn" data-action="io">Export / Import</button>
-        <button type="button" class="btn btn-danger" data-action="delete" id="delete-btn">Delete</button>
+        <button type="button" class="btn btn-danger pc-only" data-action="delete" id="delete-btn">Delete</button>
         <button type="button" class="btn btn-primary" data-action="install" id="install-btn" hidden>Install app</button>
         <button type="button" class="btn btn-primary" data-action="reload" id="update-btn" hidden>Update ready · Reload</button>
         <span class="pill net-pill" id="net-pill" role="status" hidden>Offline</span>
       </div>
     </div>
   </div>
-  <div class="levelbar">
+  <div class="levelbar pc-only">
     <div class="levelbar-inner">
       <div class="level-readout">
         <button type="button" class="step" data-action="level-down" aria-label="Previous level">&minus;</button>
@@ -49,16 +50,7 @@
     </div>
   </div>
   <nav class="tabs" aria-label="Views">
-    <div class="tabs-inner">
-      <button type="button" class="tab" data-tab="build">Build</button>
-      <button type="button" class="tab" data-tab="sheet">Sheet</button>
-      <button type="button" class="tab" data-tab="play">Play</button>
-      <button type="button" class="tab" data-tab="gear">Gear</button>
-      <button type="button" class="tab" data-tab="spells">Spells</button>
-      <button type="button" class="tab" data-tab="companions">Companions</button>
-      <button type="button" class="tab" data-tab="progression">All 20 levels</button>
-      <button type="button" class="tab" data-tab="library">Library</button>
-    </div>
+    <div class="tabs-inner" id="tabs"></div>
   </nav>
 </header>
 
@@ -77,7 +69,7 @@
 <div id="modal" class="modal" hidden></div>
 <div id="print-root" hidden></div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="js/vendor/jszip.min.js"></script>
 <script src="js/data/rules.js"></script>
 <script src="js/data/spells.js"></script>
 <script src="js/data/classes.js"></script>
@@ -88,6 +80,8 @@
 <script src="js/github.js"></script>
 <script src="js/icons.js"></script>
 <script src="js/play.js"></script>
+<script src="js/gm-rules.js"></script>
+<script src="js/gm.js"></script>
 <script src="js/print.js"></script>
 <script src="js/app.js"></script>
 </body>

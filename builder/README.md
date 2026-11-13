@@ -26,7 +26,7 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
   - **Health**: HP and temp HP bars with Damage, Heal and Temp HP (temp HP absorbs damage first), death saves at 0 HP, a temporary AC bonus, Exhaustion and Heroic Inspiration.
   - **Conditions**: toggle the conditions affecting you. Each has its icon and Immune/Advantage badges from your build. Active ones list their rules here and appear as icon chips in the summary panel on every tab.
   - **Turn markers**: Action, Bonus Action, Reaction, each attack of the Attack action, and once-per-turn features such as Sneak Attack. **Next turn** clears them.
-  - **Limited uses**: class resources (Rages, Focus Points, Channel Divinity, Second Wind, Sorcery Points…), Lay On Hands and Bardic Inspiration pools, and features or traits usable once or a few times per rest. Each is tagged Short or Long Rest.
+  - **Limited uses**: class resources (Rages, Focus Points, Channel Divinity, Second Wind, Sorcery Points…), Lay On Hands and Bardic Inspiration pools, and features or traits usable once, a Proficiency Bonus number of times, or an ability modifier number of times per rest (Breath Weapon, Stonecunning, Wholeness of Body…). Each is tagged Short or Long Rest. Species traits gained at a later level appear from that level.
   - **Spell slots and Pact slots**, plus a spell list where **Cast** spends a slot and rolls the damage or healing scaled to that slot. Cantrips scale with level.
   - **Hit Dice**: spend them to heal (they roll the die plus your Con modifier).
   - **Short and Long Rest buttons**: restore what each rest restores.
@@ -48,15 +48,35 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
 - **Companions tab**: familiars, steeds, summons, animated minions, hirelings, sidekicks and Wild Shape forms, each with a full stat block. Suggestions come from the build's spells and features (Find Familiar, Find Steed, Summon spells, Animate Dead, Pact of the Chain, Beast Master, druid Wild Shape by CR).
 - **All 20 levels**: one table with PB, HP, AC, ability scores, features and your choices, the class table columns and spell slots for every level.
 - **Library**: search and filter spells, items, creatures, feats, species, backgrounds and classes, and open any entry in full.
-- Multiple saved builds, Duplicate (to compare variants), and Export/Import as JSON text.
+- Multiple saved builds, Duplicate (to compare variants), and Export/Import as JSON text. Export has two modes: **This character**, or **Everything (backup)** with all characters, encounters, your creatures and the party. Importing a backup only adds what's missing; it never overwrites. Imported data is checked and repaired before it's used.
+- **Profiles**: the Profile menu in the header chooses which tools show: **Player**, **Game Master**, or **Player + GM**. New users are asked once.
 - **Rulesets**: each character uses either the **2024 rules** or **Legacy content**, chosen when it's created (New). Legacy characters can also pick 2014 classes, species, backgrounds, feats and spells from an imported compendium, plus 2014 subclasses republished for 2024 classes (named "(Legacy)", as in FightClub5eXML's Legacy_5e set). The choice is locked: a 2024 character can't switch to Legacy. A Legacy character can be upgraded to the 2024 rules from the Build tab. The upgrade swaps each 2014 pick for its 2024 version (including renamed subclasses such as Way of Shadow → Warrior of Shadow), rebuilds every level, clears choices that no longer exist and lists anything to choose again. It can upgrade the character in place or a copy. Builds saved before rulesets existed count as Legacy if they use 2014 content.
+
+## Game Master tools
+
+Shown with the Game Master or Player + GM profile.
+
+- **Party**: link characters saved in the app (their level, AC, HP, initiative and Passive Perception follow the character) or add players by hand. With no party set up, encounters use a quick party of N characters at one level.
+- **Encounters**: build encounters from the bestiary. The creature list shows CR and XP and can filter to what still fits the Low, Moderate or High budget.
+  - **Difficulty** follows the 2024 encounter rules: each character has an XP budget by level for Low, Moderate and High difficulty; the party's budget is the sum, and the creatures' XP is spent against it. There are no multipliers for group size.
+  - A meter shows where the encounter lands, the XP each character earns, and cautions from the encounter guidance: more than two creatures per character, a creature whose CR is above the party's level, and very small parties.
+- **Run**: an initiative tracker for the chosen encounter.
+  - Starting it rolls initiative for the creatures (identical creatures can share a roll) and can roll their Hit Points instead of using the average. Enter the players' rolls, or roll for the blanks.
+  - Each combatant has HP with Hit and Heal, conditions with their icons, and Defeat/Revive. **Next turn** skips defeated creatures and counts rounds.
+  - The stat block of whoever's turn it is shows below the tracker; attack rolls and damage in it are clickable and roll into the dice tray.
+  - Add creatures or anyone else mid-fight. XP earned so far is totalled and split between the characters.
+- **Creatures**: build your own creatures, or start from any existing one. They join the bestiary for encounters and companions.
+  - The form covers size, type, CR, AC, Hit Dice (HP is worked out from size and Constitution), abilities and save proficiencies, senses, defenses, and traits, actions, bonus actions, reactions and legendary actions. **Quick attack** writes an attack with the right attack bonus and average damage.
+  - **Power check** compares the creature's Hit Points, AC, attack bonus, save DC and damage per round with a typical creature of its CR, and estimates a defensive, offensive and overall CR. "Typical" is the median of the SRD creatures at each CR, and damage per round is read from the action text (multiattack, recharge and legendary actions included). It's an estimate: traits, resistances and spells aren't counted.
+
+The rules data is in `js/gm-rules.js` (`DND.XP_BUDGET`, `DND.encounterDifficulty`, `DND.monsterStats`, `DND.crBenchmarks`, `DND.estimateCR`).
 
 ## Install and offline use
 
 The hosted copy (GitHub Pages) is an installable app that works offline:
 
 - **Install:** on Chrome, Edge and Android, use **Install app** in the header (or the browser's install option). On iPhone and iPad, **Install app** shows the steps: Share → **Add to Home Screen**. Installed, it opens full screen from its own icon.
-- **Offline:** after the first visit everything works without a connection, including your builds, the SRD content, an imported compendium, dice and the Play tab. Only importing from GitHub needs a connection, and an **Offline** badge shows in the header while you're disconnected.
+- **Offline:** after the first visit everything works without a connection (JSZip is bundled in `js/vendor/`; only the web fonts come from a CDN, with system fonts as the fallback), including your builds, the SRD content, an imported compendium, dice and the Play tab. Only importing from GitHub needs a connection, and an **Offline** badge shows in the header while you're disconnected.
 - **Updates:** files are served from the cache and refreshed in the background. When a new version has been downloaded, an **Update ready · Reload** button appears.
 
 The service worker is `sw.js`, the manifest is `manifest.webmanifest`, and the icons in `icons/` are drawn by `tools/make-icons.py`. When adding or removing app files, update the list in `sw.js` and bump its `CACHE` name.
@@ -107,9 +127,16 @@ node tools/build-srd.js ./FightClub5eXML
 | `js/fc5.js` | Dependency-free reader for Fight Club 5 compendium XML (browser and Node) |
 | `js/content.js` | Merges SRD and imported content into the builder; import and IndexedDB storage |
 | `js/icons.js` | Line icons for classes, species, backgrounds, weapons, armor and items, and the name-matching rules that pick them |
+| `js/play.js` | Dice roller, limited-use detection for the Play tab, spell damage parsing |
+| `js/github.js` | Import compendium XML from a GitHub repository, folder or file link |
+| `js/gm-rules.js` | Encounter XP budgets and difficulty, stat-block statistics, CR estimate, custom creatures |
+| `js/gm.js` | Game Master screens: party, encounters, initiative tracker, creature builder |
 | `js/print.js` | Printable character sheet and plain-text export |
 | `js/app.js` | UI rendering, events, persistence |
+| `js/vendor/jszip.min.js` | JSZip 3.10.1 (MIT), for .zip compendium imports |
+| `sw.js`, `manifest.webmanifest` | Offline cache and install metadata |
 | `tools/build-srd.js` | Builds `js/data/srd-content.js` |
+| `tools/make-icons.py` | Draws the app icons in `icons/` |
 
 To add hand-built content (a new subclass, feat or species), add an entry to the data files. Each feature can declare `choices` (a select or multi-pick, with options that can carry their own sub-choices) and an `apply(state)` effect. The engine handles the rest.
 
