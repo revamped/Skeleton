@@ -155,6 +155,12 @@
     abWis: '<path d="M5 4l3 3h8l3-3v10a7 7 0 0 1-14 0z"/><circle cx="9" cy="11" r="2"/><circle cx="15" cy="11" r="2"/><path d="m11 15 1 1.5 1-1.5"/>',
     abCha: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1-4.4-4.3 6.1-.9z"/>',
 
+    /* Game Master */
+    gmEncounter: '<path d="M4 4h3l10 10-3 3L4 7z"/><path d="M20 4h-3L7 14l3 3L20 7z"/><path d="m5 16 3 3M19 16l-3 3M4 20l2.5-2.5M20 20l-2.5-2.5"/>',
+    gmRun: '<path d="M4 6h9M4 12h9M4 18h9"/><path d="m16 8 5 4-5 4z"/>',
+    gmCreature: '<path d="M4 20c0-5 2-8 5-10L7 4l5 3 5-3-2 6c3 2 5 5 5 10"/><path d="M9.5 14h.01M14.5 14h.01"/><path d="M10 18l2 1.5 2-1.5"/>',
+    gmParty: '<circle cx="8" cy="8" r="3"/><circle cx="16.5" cy="9" r="2.5"/><path d="M2.5 20c.5-4 2.7-6 5.5-6s5 2 5.500 6"/><path d="M15 14.2c.5-.1 1-.2 1.500-.2 2.500 0 4.300 1.800 5 5"/>',
+
     /* Items */
     potion: '<path d="M10 3h4M10.5 3v5L6 15a4.5 4.5 0 0 0 4 6h4a4.5 4.5 0 0 0 4-6l-4.5-7V3"/><path d="M7.5 14h9"/>',
     ring: '<circle cx="12" cy="14" r="6"/><path d="m10 8-1.5-3h7L14 8"/><path d="M8.5 5 12 3l3.5 2"/>',

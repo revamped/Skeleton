@@ -62,11 +62,21 @@
     var src = DND.parseGitHubUrl(url);
     if (!src) return Promise.reject(new Error('That isn\'t a GitHub link. Use https://github.com/owner/repository.'));
     if (src.kind === 'file' && !/\.xml$/i.test(src.path)) return Promise.reject(new Error('That link is a file, but not an .xml compendium file.'));
+    // A file link needs no branch lookup: its raw address is the same however branch and path are split.
     if (src.kind === 'file') return Promise.resolve({ src: src, collections: [src.path], direct: true });
     var refP = src.ref ? Promise.resolve(src.ref) : getJSON(API + src.owner + '/' + src.repo).then(function (r) { return r.default_branch; });
+    // A branch name can contain "/" (feature/foo): if the tree isn't found, move path segments into the ref and retry.
+    function treeFor(tries) {
+      return getJSON(API + src.owner + '/' + src.repo + '/git/trees/' + encodeURIComponent(src.ref) + '?recursive=1').catch(function (err) {
+        var seg = src.path.split('/')[0];
+        if (!/not found/i.test(err.message) || !seg || tries <= 0) throw err;
+        src.ref += '/' + seg; src.path = src.path.split('/').slice(1).join('/');
+        return treeFor(tries - 1);
+      });
+    }
     return refP.then(function (ref) {
       src.ref = ref;
-      return getJSON(API + src.owner + '/' + src.repo + '/git/trees/' + encodeURIComponent(ref) + '?recursive=1');
+      return treeFor(3);
     }).then(function (tree) {
       var under = src.path ? src.path + '/' : '';
       var xml = tree.tree.filter(function (t) { return t.type === 'blob' && /\.xml$/i.test(t.path) && t.path.indexOf(under) === 0; }).map(function (t) { return t.path; });
