@@ -19,12 +19,13 @@
   DND.crNumber = function (cr) { var k = crKey(cr), p = k.split('/'); return p.length > 1 ? +p[0] / +p[1] : +k; };
   DND.crProf = function (cr) { return 2 + Math.floor(Math.max(0, DND.crNumber(cr) - 1) / 4); };
 
-  // XP Budget per Character (2024 rules): [Low, Moderate, High] for character levels 1-20.
+  // XP Budget per Character (SRD 5.2, Combat Encounter Difficulty): [Low, Moderate, High] for levels 1-20.
+  // Checked row by row against the SRD text.
   DND.XP_BUDGET = [[50, 75, 100], [100, 150, 200], [150, 225, 400], [250, 375, 500], [500, 750, 1100], [600, 1000, 1400], [750, 1300, 1700],
     [1000, 1700, 2100], [1300, 2000, 2600], [1600, 2300, 3100], [1900, 2900, 4100], [2200, 3700, 4700], [2600, 4200, 5400], [2900, 4900, 6200],
     [3300, 5400, 7800], [3800, 6100, 9800], [4500, 7200, 11700], [5000, 8700, 14200], [5500, 10700, 17200], [6400, 13200, 22000]];
   DND.DIFFICULTY = [
-    ['Low', 'One or two scary moments, but the party should win without casualties. Healing resources may be needed.'],
+    ['Low', 'One or two scary moments, but the party should win without casualties. Healing resources may be needed. As a rough guide, one creature whose CR equals the party\'s level is a Low fight for four characters.'],
     ['Moderate', 'Could go badly without healing and other resources. Weaker characters might be taken out, and there\'s a slim chance someone dies.'],
     ['High', 'Could be lethal for one or more characters. The party needs smart tactics, quick thinking and maybe a little luck.']
   ];
@@ -35,20 +36,23 @@
     levels = (levels || []).map(function (l) { return Math.max(1, Math.min(20, Math.round(+l) || 1)); });
     var budget = [0, 0, 0];
     levels.forEach(function (l) { for (var i = 0; i < 3; i++) budget[i] += DND.XP_BUDGET[l - 1][i]; });
-    var xp = 0, count = 0, topCr = 0;
+    var xp = 0, count = 0, topCr = 0, cr0 = 0, kinds = 0;
+    var minLevel = levels.length ? Math.min.apply(null, levels) : 0, maxLevel = levels.length ? Math.max.apply(null, levels) : 0;
     (monsters || []).forEach(function (m) {
       var n = Math.max(0, +m.count || 0);
       xp += DND.crXp(m.cr) * n; count += n;
-      if (n) topCr = Math.max(topCr, DND.crNumber(m.cr));
+      if (n) { topCr = Math.max(topCr, DND.crNumber(m.cr)); kinds++; if (DND.crNumber(m.cr) === 0) cr0 += n; }
     });
     var tier = !levels.length || !count ? -1 : xp <= budget[0] ? 0 : xp <= budget[1] ? 1 : xp <= budget[2] ? 2 : 3;
     var avgLevel = levels.length ? levels.reduce(function (a, b) { return a + b; }, 0) / levels.length : 0;
     var notes = [];
     if (levels.length && count) {
       if (tier === 3) notes.push('Over the High budget by ' + (xp - budget[2]).toLocaleString() + ' XP. Expect characters to drop; a total party defeat is possible.');
-      if (count > levels.length * 2) notes.push(count + ' creatures against ' + levels.length + ' characters. More than two creatures per character is harder than the XP suggests, and slower to run.');
-      if (topCr > avgLevel) notes.push('A CR ' + topCr + ' creature against a level ' + (Math.round(avgLevel * 10) / 10) + ' party. A creature with a CR above the party\'s level can take a character out with one action.');
-      if (levels.length < 3) notes.push('Parties of one or two characters are swingier than the budget suggests; lean toward Low.');
+      if (count > levels.length * 2) notes.push('Many creatures: ' + count + ' against ' + levels.length + ' character' + (levels.length === 1 ? '' : 's') + '. With more than two creatures per character, a lucky streak can deal more damage than you expect, so include fragile creatures that go down quickly' + (avgLevel <= 2 ? '. This matters most at levels 1 and 2.' : '.'));
+      if (topCr > minLevel) notes.push('Powerful creature: CR ' + topCr + ' against ' + (minLevel === maxLevel ? 'a level ' + minLevel + ' party' : 'characters as low as level ' + minLevel) + '. A creature whose CR is higher than the party\'s level might deal enough damage with one action to take out one or more characters.');
+      if (cr0 > 2) notes.push('CR 0 creatures: ' + cr0 + ' in this encounter. Use them sparingly; for many small critters, use a swarm instead.');
+      if (kinds > 3) notes.push('Stat blocks: ' + kinds + ' different creatures. More than two or three stat blocks in one encounter can be hard to run, especially if they\'re complex.');
+      if (minLevel !== maxLevel) notes.push('Mixed levels: the rules assume one party level. Here each character\'s budget uses their own level (' + minLevel + ' to ' + maxLevel + ').');
     }
     return { budget: budget, xp: xp, count: count, tier: tier, label: tier < 0 ? '' : tier === 3 ? 'Beyond High' : DND.DIFFICULTY[tier][0],
       desc: tier < 0 ? '' : tier === 3 ? 'More than the High budget: likely lethal.' : DND.DIFFICULTY[tier][1],
