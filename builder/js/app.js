@@ -9,7 +9,8 @@
   var app = { builds: [], currentId: null, tab: 'build', showAll: true, modal: null, deleteArmed: false,
     lib: { cat: 'spells', q: '', f1: '', f2: '' }, importing: '', clearArmed: false, ready: false,
     rolls: [], rollMode: '', rollCrit: false, trayOpen: false,
-    gh: { url: '', listing: null, busy: false, msg: '' } };
+    gh: { url: '', listing: null, busy: false, msg: '' },
+    profile: '', gm: null, io: 'build' };
   var ev = null;
 
   /* ---------- Helpers ---------- */
@@ -42,18 +43,78 @@
 
   /* ---------- Persistence ---------- */
 
+  // Repair a build that came from storage, a pasted export or a link: every number is coerced and
+  // unknown shapes are dropped, so bad data can't break rendering or carry markup. Returns null if
+  // the build still can't be evaluated.
+  function int(v, lo, hi, dflt) { var n = Math.round(Number(v)); return isFinite(n) ? Math.max(lo, Math.min(hi, n)) : dflt; }
+  function str(v, max) { return typeof v === 'string' ? v.slice(0, max || 200) : typeof v === 'number' ? String(v) : ''; }
+  function sanitizeBuild(nb) {
+    if (!nb || typeof nb !== 'object' || Array.isArray(nb) || !nb.classId || !nb.base || typeof nb.base !== 'object') return null;
+    var fresh = D.newBuild(), b = {};
+    b.v = 1; b.id = str(nb.id, 40) || fresh.id; b.name = str(nb.name, 60) || 'Unnamed';
+    b.level = int(nb.level, 1, 20, 1);
+    b.classId = str(nb.classId); b.speciesId = str(nb.speciesId) || fresh.speciesId; b.backgroundId = str(nb.backgroundId) || fresh.backgroundId;
+    b.abilityMethod = /^(standard|pointbuy|manual)$/.test(nb.abilityMethod) ? nb.abilityMethod : 'manual';
+    b.base = {}; D.ABILITIES.forEach(function (a) { b.base[a] = int(nb.base[a], 1, 30, 10); });
+    b.choices = {};
+    if (nb.choices && typeof nb.choices === 'object') Object.keys(nb.choices).forEach(function (k) {
+      var v = nb.choices[k];
+      if (typeof v === 'string') b.choices[k] = v; else if (Array.isArray(v)) b.choices[k] = v.filter(function (x) { return typeof x === 'string'; });
+    });
+    function strList(v) { return Array.isArray(v) ? v.filter(function (x) { return typeof x === 'string'; }) : []; }
+    var sp = nb.spells || {}; b.spells = { cantrips: strList(sp.cantrips), prepared: strList(sp.prepared) };
+    if (nb.spellPlan && typeof nb.spellPlan === 'object') {
+      b.spellPlan = {};
+      Object.keys(nb.spellPlan).forEach(function (c) {
+        var per = nb.spellPlan[c]; if (!per || typeof per !== 'object') return;
+        b.spellPlan[c] = {};
+        Object.keys(per).forEach(function (l) { var e = per[l] || {}; b.spellPlan[c][l] = { cantrips: strList(e.cantrips), prepared: strList(e.prepared) }; });
+      });
+    }
+    if (Array.isArray(nb.plan)) b.plan = Array.from({ length: 20 }, function (_, i) { return typeof nb.plan[i] === 'string' ? nb.plan[i] : null; });
+    var g = nb.gear || {};
+    b.gear = { armor: str(g.armor) || 'none', shield: g.shield === true ? 'shield' : typeof g.shield === 'string' ? g.shield : false, weapons: strList(g.weapons) };
+    b.inventory = (Array.isArray(nb.inventory) ? nb.inventory : []).filter(function (e) { return e && typeof e === 'object'; }).map(function (e) {
+      var o = { qty: int(e.qty, 1, 9999, 1), equipped: !!e.equipped, attuned: !!e.attuned };
+      if (typeof e.id === 'string') o.id = e.id;
+      if (typeof e.name === 'string') o.name = e.name.slice(0, 120);
+      return o;
+    }).filter(function (e) { return e.id || e.name; });
+    b.companions = (Array.isArray(nb.companions) ? nb.companions : []).filter(function (c) { return c && typeof c.id === 'string'; }).map(function (c) {
+      return { id: c.id, role: str(c.role, 40) || 'Summon', qty: int(c.qty, 1, 999, 1), nick: str(c.nick, 60) };
+    });
+    b.options = { legacySpells: !!(nb.options && nb.options.legacySpells) };
+    if (nb.ruleset === 'legacy' || nb.ruleset === '2024') b.ruleset = nb.ruleset;
+    var p = nb.play;
+    if (p && typeof p === 'object') {
+      var used = {}, flags = function (o) { var out = {}; if (o && typeof o === 'object') Object.keys(o).forEach(function (k) { if (o[k]) out[k] = true; }); return out; };
+      if (p.used && typeof p.used === 'object') Object.keys(p.used).forEach(function (k) { var n = int(p.used[k], 0, 9999, 0); if (n) used[k] = n; });
+      b.play = { hp: p.hp == null ? null : int(p.hp, 0, 9999, null), temp: int(p.temp, 0, 9999, 0), acBonus: int(p.acBonus, -20, 20, 0), used: used,
+        death: { s: int(p.death && p.death.s, 0, 3, 0), f: int(p.death && p.death.f, 0, 3, 0) }, exh: int(p.exh, 0, 6, 0), insp: !!p.insp,
+        turn: flags(p.turn), conds: flags(p.conds), round: int(p.round, 1, 9999, 1),
+        custom: (Array.isArray(p.custom) ? p.custom : []).filter(function (c) { return c && typeof c === 'object'; }).map(function (c) {
+          return { id: str(c.id, 30) || 'c' + Math.random().toString(36).slice(2, 8), name: str(c.name, 40) || 'Tracker', max: int(c.max, 1, 99, 1), reset: /^(long|short|turn|none)$/.test(c.reset) ? c.reset : 'none' };
+        }) };
+    }
+    try { D.evaluate(b); } catch (e) { return null; }
+    return b;
+  }
+
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ builds: app.builds, currentId: app.currentId, tab: app.tab, showAll: app.showAll, libCat: app.lib.cat })); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ builds: app.builds, currentId: app.currentId, tab: app.tab, showAll: app.showAll, libCat: app.lib.cat, profile: app.profile, gm: app.gm })); } catch (e) { /* storage unavailable */ }
   }
   function load() {
     try {
       var raw = localStorage.getItem(STORE_KEY);
       if (raw) {
         var data = JSON.parse(raw);
-        if (data && Array.isArray(data.builds) && data.builds.length) {
-          app.builds = data.builds; app.currentId = data.currentId; app.tab = data.tab || 'build';
+        var saved = data && Array.isArray(data.builds) ? data.builds.map(sanitizeBuild).filter(Boolean) : [];
+        if (saved.length) {
+          app.builds = saved; app.currentId = data.currentId; app.tab = typeof data.tab === 'string' ? data.tab : 'build';
           app.showAll = data.showAll !== false;
           if (data.libCat) app.lib.cat = data.libCat;
+          app.profile = /^(player|gm|both)$/.test(data.profile) ? data.profile : '';
+          app.gm = data.gm && typeof data.gm === 'object' ? data.gm : null;
           return;
         }
       }
@@ -121,10 +182,45 @@
   }
   function findRec(key) { return allChoiceRecs().filter(function (c) { return c.key === key; })[0] || null; }
 
+  /* ---------- Profiles: player, Game Master or both ---------- */
+
+  var PLAYER_TABS = [['build', 'Build'], ['sheet', 'Sheet'], ['play', 'Play'], ['gear', 'Gear'], ['spells', 'Spells'], ['companions', 'Companions'], ['progression', 'All 20 levels']];
+  var GM_TABS = [['gm-encounters', 'Encounters'], ['gm-run', 'Run'], ['gm-creatures', 'Creatures'], ['gm-party', 'Party']];
+  var PROFILES = [['player', 'Player'], ['gm', 'Game Master'], ['both', 'Player + GM']];
+  function profile() { return app.profile || 'player'; }
+  function tabsFor(p) { return (p === 'gm' ? [] : PLAYER_TABS).concat(p === 'player' ? [] : GM_TABS, [['library', 'Library']]); }
+  function isGmTab(t) { return /^gm-/.test(t); }
+  function gmView() { return isGmTab(app.tab) || (profile() === 'gm' && app.tab === 'library'); }
+  function setProfile(p) {
+    app.profile = p;
+    var ids = tabsFor(p).map(function (t) { return t[0]; });
+    if (ids.indexOf(app.tab) < 0) app.tab = ids[0];
+    commit();
+  }
+  function welcomeCard() {
+    if (app.profile) return '';
+    return '<section class="card notice welcome"><div class="card-body"><h3>How will you use Levelwright?</h3>' +
+      '<p class="desc">Pick a profile to choose which tools you see. You can change it any time from the Profile menu at the top.</p><div class="profile-pick">' +
+      [['player', 'Player', 'Build characters, plan all 20 levels, and track HP, spell slots and dice at the table.'],
+        ['gm', 'Game Master', 'Build and balance encounters, run initiative, and create your own creatures.'],
+        ['both', 'Player + GM', 'Everything: the character tools and the Game Master tools side by side.']].map(function (o) {
+        return '<button type="button" class="profile-card" data-profile="' + o[0] + '">' + ico(o[0] === 'player' ? 'fighter' : o[0] === 'gm' ? 'dragonborn' : 'd20') + '<b>' + o[1] + '</b><span>' + o[2] + '</span></button>';
+      }).join('') + '</div></div></section>';
+  }
+
   /* ---------- Rendering: header ---------- */
 
   function renderHeader() {
     var b = cur();
+    var gmv = gmView();
+    document.body.classList.toggle('view-gm', gmv);
+    $('#profile-select').innerHTML = PROFILES.map(function (p) { return '<option value="' + p[0] + '"' + (p[0] === profile() ? ' selected' : '') + '>' + p[1] + '</option>'; }).join('');
+    var gmFirst = false;
+    $('#tabs').innerHTML = tabsFor(profile()).map(function (t) {
+      var sep = isGmTab(t[0]) && !gmFirst && profile() === 'both' ? '<span class="tab-sep" aria-hidden="true">GM</span>' : '';
+      if (isGmTab(t[0])) gmFirst = true;
+      return sep + '<button type="button" class="tab' + (t[0] === app.tab ? ' active' : '') + '" data-tab="' + t[0] + '"' + (t[0] === app.tab ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
+    }).join('');
     $('#build-select').innerHTML = app.builds.map(function (x) {
       var c = D.cls(x.classId);
       return '<option value="' + esc(x.id) + '"' + (x.id === b.id ? ' selected' : '') + '>' + esc(x.name || 'Unnamed') + ' · ' + esc(c ? c.name : '') + ' ' + x.level + (D.rulesetOf(x) === 'legacy' ? ' · Legacy' : '') + '</option>';
@@ -349,23 +445,38 @@
   /* ---------- Dice ---------- */
 
   // A button that rolls a dice expression into the roll tray.
-  function rollBtn(expr, label, text) {
-    return '<button type="button" class="roll" data-roll="' + esc(expr) + '" data-rlabel="' + esc(label || '') + '" title="Roll ' + esc(expr) + '">' + (text == null ? esc(expr) : text) + '</button>';
+  function rollBtn(expr, label, text, pc) {
+    return '<button type="button" class="roll" data-roll="' + esc(expr) + '" data-rlabel="' + esc(label || '') + '"' + (pc ? ' data-pc="1"' : '') + ' title="Roll ' + esc(expr) + '">' + (text == null ? esc(expr) : text) + '</button>';
   }
-  function d20Btn(mod, label, text) { return rollBtn('1d20' + sign(mod), label, text == null ? esc(sign(mod)) : text); }
-  // Turns dice expressions in (already escaped) HTML text into roll buttons, leaving tags alone.
+  // A d20 roll for the current character (Exhaustion applies to it).
+  function d20Btn(mod, label, text) { return rollBtn('1d20' + sign(mod), label, text == null ? esc(sign(mod)) : text, true); }
+  // Turns attack rolls ("Attack Roll: +6", "+6 to hit") and dice expressions in (already escaped)
+  // HTML text into roll buttons, leaving tags alone.
   function rollify(html, label) {
-    return html.split(/(<[^>]+>)/).map(function (part) {
-      if (part[0] === '<') return part;
+    function eachText(h, fn) { return h.split(/(<[^>]+>)/).map(function (part) { return part[0] === '<' ? part : fn(part); }).join(''); }
+    var withAttacks = eachText(html, function (part) {
+      return part.replace(/(Attack Roll:\s*)([+\u2212-]\d+)|([+\u2212-]\d+)(?= to hit)/g, function (m, pre, a, b) {
+        var bonus = (a || b).replace('\u2212', '-');
+        return (pre || '') + rollBtn('1d20' + bonus, (label ? label + ' ' : '') + 'attack', a || b);
+      });
+    });
+    return eachText(withAttacks, function (part) {
       return part.replace(D.DICE_RE, function (m) { return rollBtn(m.replace(/\u2212/g, '-').replace(/\s+/g, ''), label, m); });
-    }).join('');
+    });
   }
-  function doRoll(expr, label) {
-    var isD20 = /^1d20([+-]\d+)?$/.test(expr.replace(/\s+/g, ''));
-    var res = D.rollDice(expr, isD20 ? { mode: app.rollMode } : { crit: app.rollCrit });
+  // opts.noCrit: healing and Hit Dice are never doubled by the Critical hit toggle.
+  function doRoll(expr, label, pc, opts) {
+    // Each Exhaustion level takes 2 off the character's D20 Tests.
+    var exh = pc && cur() && cur().play ? cur().play.exh || 0 : 0;
+    if (exh && /^1d20([+-]\d+)?$/.test(expr.replace(/\s+/g, ''))) {
+      var base = /^1d20([+-]\d+)?$/.exec(expr.replace(/\s+/g, ''))[1], total = (base ? +base : 0) - 2 * exh;
+      expr = '1d20' + (total ? sign(total) : ''); label = (label || 'Roll') + ' (Exhaustion ' + exh + ')';
+    }
+    var isD20 = /^1?d20([+-]\d+)?$/i.test(expr.replace(/\s+/g, '')), noCrit = opts && opts.noCrit;
+    var res = D.rollDice(expr, isD20 ? { mode: app.rollMode } : { crit: app.rollCrit && !noCrit });
     res.label = label || ''; res.at = Date.now();
     app.rolls.unshift(res); app.rolls.length = Math.min(app.rolls.length, 30);
-    if (!isD20 && app.rollCrit) app.rollCrit = false;
+    if (!isD20 && app.rollCrit && !noCrit) app.rollCrit = false;
     // On phones the tray stays collapsed; its tab shows the latest result.
     if (window.innerWidth > 700) app.trayOpen = true;
     renderTray();
@@ -785,10 +896,11 @@
   function hpBar(d, compact) {
     var p = play(), hp = curHp(d), pct = d.hp ? Math.round(hp / d.hp * 100) : 0, tmp = p.temp || 0;
     var tone = pct > 50 ? 'ok' : pct > 25 ? 'mid' : 'low';
-    return '<div class="hpbar' + (compact ? ' compact' : '') + '"' + (compact ? ' data-tab="play" role="button" tabindex="0" title="Track HP in the Play tab"' : '') + '>' +
-      '<div class="bar-label"><span>Hit points</span><b>' + hp + ' / ' + d.hp + (tmp ? ' <span class="temp-tag">+' + tmp + ' temp</span>' : '') + '</b></div>' +
-      '<div class="bar" role="meter" aria-label="Hit points" aria-valuemin="0" aria-valuemax="' + d.hp + '" aria-valuenow="' + hp + '">' +
-      '<span class="fill ' + tone + '" style="width:' + pct + '%"></span>' + (tmp ? '<span class="fill temp" style="width:' + Math.min(100, Math.round(tmp / d.hp * 100)) + '%"></span>' : '') + '</div></div>';
+    var tag = compact ? 'button type="button" data-tab="play" title="Track HP in the Play tab"' : 'div';
+    return '<' + tag + ' class="hpbar' + (compact ? ' compact' : '') + '">' +
+      '<span class="bar-label"><span>Hit points</span><b>' + hp + ' / ' + d.hp + (tmp ? ' <span class="temp-tag">+' + tmp + ' temp</span>' : '') + '</b></span>' +
+      '<span class="bar" role="meter" aria-label="Hit points" aria-valuemin="0" aria-valuemax="' + d.hp + '" aria-valuenow="' + hp + '">' +
+      '<span class="fill ' + tone + '" style="width:' + pct + '%"></span>' + (tmp ? '<span class="fill temp" style="width:' + Math.min(100, Math.round(tmp / d.hp * 100)) + '%"></span>' : '') + '</span></' + (compact ? 'button' : 'div') + '>';
   }
   // Clickable pips: the first `n` of `max` are spent. `up` pips fill as they count up (Exhaustion, death saves).
   function pips(id, max, n, label, up) {
@@ -929,7 +1041,7 @@
     if (kind === 'long') {
       pr.slots.forEach(function (sl) { delete p.used[sl.id]; });
       pr.hitDice.forEach(function (h) { delete p.used[h.id]; });
-      p.hp = d.hp; p.temp = 0; p.death = { s: 0, f: 0 };
+      p.hp = null; p.temp = 0; p.death = { s: 0, f: 0 };   // null = full, at whatever level is viewed
       if (p.exh) p.exh--;
     }
   }
@@ -976,7 +1088,20 @@
   function openPicker(key) { openModal({ type: 'choice', key: key }); }
   function openSpellPicker(kind) { openModal({ type: 'spells', kind: kind }); }
   function openList(kind) { openModal({ type: 'list', kind: kind }); }
-  function closeModal() { app.modal = null; $('#modal').hidden = true; $('#modal').innerHTML = ''; }
+  var modalReturn = null;
+  function closeModal() {
+    app.modal = null; $('#modal').hidden = true; $('#modal').innerHTML = '';
+    var back = modalReturn && (modalReturn.id ? document.getElementById(modalReturn.id) : null);
+    modalReturn = null;
+    if (back) { try { back.focus({ preventScroll: true }); } catch (e) { /* ignore */ } }
+  }
+  function modalFocusables() { return Array.prototype.slice.call($('#modal').querySelectorAll('button:not([disabled]), input:not([disabled]), select, textarea, a[href]')).filter(function (el) { return el.offsetParent !== null; }); }
+  function trapTab(e) {
+    var list = modalFocusables(); if (!list.length) return;
+    var first = list[0], last = list[list.length - 1], inside = $('#modal').contains(document.activeElement);
+    if (!inside || (e.shiftKey && document.activeElement === first)) { e.preventDefault(); (e.shiftKey ? last : first).focus(); }
+    else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+  }
 
   // Filter dropdowns shown under the search box; values live in app.modal.f.
   function filterBar(filters) {
@@ -1028,6 +1153,8 @@
     var m = app.modal, el = $('#modal');
     if (!m) return closeModal();
     var focusQ = document.activeElement && document.activeElement.id === 'dlg-q';
+    var opening = el.hidden, keepId = !opening && el.contains(document.activeElement) ? document.activeElement.id : '';
+    if (opening) modalReturn = document.activeElement && document.activeElement.id ? { id: document.activeElement.id } : null;
     var scroll = $('#dlg-list') ? $('#dlg-list').scrollTop : 0;
     var html;
     if (m.type === 'io') {
@@ -1115,6 +1242,12 @@
     el.hidden = false;
     if ($('#dlg-list')) $('#dlg-list').scrollTop = scroll;
     if (focusQ) { var qi = $('#dlg-q'); qi.focus(); qi.setSelectionRange(qi.value.length, qi.value.length); }
+    else if (keepId && document.getElementById(keepId)) document.getElementById(keepId).focus();
+    else if (!el.contains(document.activeElement)) {
+      // Touch screens would pop the keyboard if the search box took focus, so focus the dialog itself there.
+      var dlg = el.querySelector('.dialog'), q = $('#dlg-q'), coarse = window.matchMedia && matchMedia('(pointer: coarse)').matches;
+      if (q && opening && !coarse) q.focus(); else if (dlg) { dlg.setAttribute('tabindex', '-1'); dlg.focus(); }
+    }
   }
 
   function snip(text, n) { text = String(text || '').replace(/\s+/g, ' ').trim(); return text.length > n ? text.slice(0, n - 1) + '…' : text; }
@@ -1164,11 +1297,36 @@
   }
 
   function ioDialog() {
-    var json = JSON.stringify(cur(), null, 1);
-    return '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">Export / Import</h3><span class="muted">Copy this text to back up or share the build. Paste a build here to import it.</span></div>' +
-      '<div class="dialog-tools"></div><div class="dialog-list" style="padding:12px 16px"><label class="sr" for="io-text">Build JSON</label><textarea id="io-text" class="io" spellcheck="false">' + esc(json) + '</textarea>' +
-      '<p class="desc" id="io-msg" aria-live="polite"></p></div>' +
-      '<div class="dialog-foot"><button type="button" class="btn" data-io="copy">Copy</button><button type="button" class="btn" data-io="import">Import as new build</button><button type="button" class="btn btn-primary" data-close="1">Done</button></div></div>';
+    var all = app.io === 'all' || gmView();
+    var json = JSON.stringify(all ? { levelwrightBackup: 1, builds: app.builds, gm: app.gm, profile: app.profile } : cur(), null, 1);
+    return '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">Export / Import</h3><span class="muted">' +
+      (all ? 'Everything saved here: all characters, encounters, your creatures and the party.' : 'Copy this text to back up or share the character.') + ' Paste text here to import it.</span></div>' +
+      '<div class="dialog-tools"><div class="seg" role="group" aria-label="What to export"><button type="button" data-iomode="build" aria-pressed="' + !all + '">This character</button>' +
+      '<button type="button" data-iomode="all" aria-pressed="' + all + '">Everything (backup)</button></div></div>' +
+      '<div class="dialog-list" style="padding:12px 16px"><label class="sr" for="io-text">Exported data</label><textarea id="io-text" class="io" spellcheck="false">' + esc(json) + '</textarea>' +
+      '<p class="desc" id="io-msg" aria-live="polite">' + (all ? 'Importing a backup adds what\'s missing here; it never deletes or overwrites what you already have.' : '') + '</p></div>' +
+      '<div class="dialog-foot"><button type="button" class="btn" data-io="copy">Copy</button><button type="button" class="btn" data-io="import">Import</button><button type="button" class="btn btn-primary" data-close="1">Done</button></div></div>';
+  }
+  // Merge a full backup into what's here: anything with an id we don't have is added.
+  function importBackup(data) {
+    var added = { characters: 0, encounters: 0, creatures: 0, 'party members': 0 };
+    (Array.isArray(data.builds) ? data.builds : []).forEach(function (raw) {
+      var nb = sanitizeBuild(raw);
+      if (!nb || find(app.builds, nb.id)) return;
+      app.builds.push(nb); added.characters++;
+    });
+    if (data.gm && typeof data.gm === 'object') {
+      var gm = D.gm.state();
+      [['encounters', 'encounters'], ['creatures', 'creatures'], ['party', 'party members']].forEach(function (k) {
+        (Array.isArray(data.gm[k[0]]) ? data.gm[k[0]] : []).forEach(function (raw) {
+          var x = D.gm.clean(k[0], raw);
+          if (x && !find(gm[k[0]], x.id)) { gm[k[0]].push(x); added[k[1]]++; }
+        });
+      });
+      D.gm.sync();
+    }
+    if (!app.profile && /^(player|gm|both)$/.test(data.profile)) app.profile = data.profile;
+    return Object.keys(added).filter(function (k) { return added[k]; }).map(function (k) { return added[k] + ' ' + k; }).join(', ');
   }
 
   /* ---------- Rendering: gear & inventory ---------- */
@@ -1384,22 +1542,23 @@
         { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
         sourceFilter(opts)] };
     }
-    if (kind === 'monster') {
+    if (kind === 'monster' || /^gm-/.test(kind)) {
       var crs = ['0', '1/8', '1/4', '1/2'].concat(Array.from({ length: 30 }, function (_, i) { return String(i + 1); }));
       opts = (D.MONSTERS || []).map(function (m) {
         var type = (m.type || '').split(/[ ,(]/)[0].toLowerCase();
-        return { id: m.id, label: m.name, icon: D.creatureIcon(m), meta: (m.cr ? 'CR ' + m.cr + ' · ' : '') + (D.SIZE_NAME[m.size] || m.size || '') + ' ' + m.type + (m.ed === '2024' ? ' · 2024' : ''),
-          search: (m.name + ' ' + m.type).toLowerCase(), cr: D.crValue(m.cr),
+        return { id: m.id, label: m.name, icon: D.creatureIcon(m), meta: (m.cr ? 'CR ' + m.cr + ' · ' + D.crXp(m.cr).toLocaleString() + ' XP · ' : '') + (D.SIZE_NAME[m.size] || m.size || '') + ' ' + m.type + (m.custom ? ' · yours' : m.ed === '2024' ? ' · 2024' : ''),
+          search: (m.name + ' ' + m.type).toLowerCase(), cr: D.crValue(m.cr), xp: D.crXp(m.cr),
           facets: { type: type, size: D.SIZE_NAME[m.size] || m.size, ed: m.ed, src: m.src || '', fly: /fly/i.test(m.speed) ? 'fly' : '', swim: /swim/i.test(m.speed) ? 'swim' : '' } };
       }).sort(function (a, c) { return a.label.localeCompare(c.label); });
-      return { title: 'Add a creature', options: opts, filters: [
+      var gmSrc = /^gm-/.test(kind) ? D.gm.listInfo(kind) : null;
+      return { title: gmSrc ? gmSrc.title : 'Add a creature', options: opts, filters: (gmSrc && gmSrc.filters || []).concat([
         { id: 'crmax', label: 'Max CR', values: crs.map(function (c) { return [c, 'CR ' + c + ' or lower']; }), test: function (o, v) { return o.cr <= D.crValue(v); } },
         { id: 'crmin', label: 'Min CR', values: crs.map(function (c) { return [c, 'CR ' + c + ' or higher']; }), test: function (o, v) { return o.cr >= D.crValue(v); } },
         { id: 'type', label: 'Type', values: facetValues(opts, 'type') },
         { id: 'size', label: 'Size', values: ['Tiny', 'Small', 'Medium', 'Large', 'Huge', 'Gargantuan'].map(function (z) { return [z, z]; }) },
         { id: 'move', label: 'Movement', values: [['fly', 'Can fly'], ['swim', 'Can swim']], test: function (o, v) { return o.facets[v] === v; } },
         { id: 'ed', label: 'Edition', values: [['2024', '2024'], ['2014', '2014 and other']] },
-        sourceFilter(opts)] };
+        sourceFilter(opts)]) };
     }
     if (kind === 'levelclass') {
       var Lf = app.modal.forLevel, main = D.cls(b.classId), st = ev.levels[Lf - 1] ? ev.levels[Lf - 2].state : null;
@@ -1502,6 +1661,7 @@
   }
   function pickFromList(kind, id) {
     var b = cur();
+    if (/^gm-/.test(kind)) { D.gm.pick(kind, id); return; }
     if (kind === 'weapon') { b.gear.weapons = (b.gear.weapons || []).concat(id); }
     if (kind === 'levelclass') {
       var Lp = app.modal.forLevel, until = app.modal.f.apply === 'rest' ? 20 : Lp;
@@ -1595,6 +1755,7 @@
     var status = app.importing ? '<p class="pill pill-gold" aria-live="polite">' + esc(app.importing) + '</p>' : '';
     var loaded = info ? '<div class="rows">' + Object.keys(info.counts).map(function (k) { return '<div class="row"><span>' + k.replace(/^./, function (c) { return c.toUpperCase(); }) + '</span><span class="v">' + info.counts[k].toLocaleString() + '</span></div>'; }).join('') + '</div>' +
       '<p class="desc">From ' + esc(info.files.slice(0, 4).join(', ') + (info.files.length > 4 ? ' and ' + (info.files.length - 4) + ' more' : '')) + ' · imported ' + esc(new Date(info.date).toLocaleString()) +
+      (info.github && info.github.failed ? ' · <b>' + info.github.failed + ' file' + (info.github.failed === 1 ? '' : 's') + ' could not be downloaded</b>, so some content may be missing (try Update from GitHub)' : '') +
       (info.saved === false ? ' · <b>not saved</b> (this browser blocks storage, so you\'ll need to import again next visit)' : '') + '</p>' : '';
     return '<section class="card"><div class="card-head"><h3>Your compendium</h3>' + (info ? '<span class="pill pill-ok">loaded</span>' : '<span class="pill pill-plain">none loaded</span>') + '</div><div class="card-body">' +
       '<p class="desc">Import Fight Club 5 / Game Master 5 compendium files (.xml, or a .zip of them), such as the collections built from the FightClub5eXML project. Files are read in this browser and stored only here; nothing is uploaded. Imported content adds classes, subclasses, species, backgrounds, feats, spells, items and creatures to the builder.</p>' +
@@ -1619,7 +1780,8 @@
         return '<optgroup label="' + esc(g[0]) + '">' + g[1].map(function (c) {
           return '<option value="' + esc(c[0]) + '"' + (c[0] === pick || (!pick && /Core_Rulebooks_5\.5e/.test(c[0])) ? ' selected' : '') + '>' + esc(c[1]) + '</option>';
         }).join('') + '</optgroup>';
-      }).join('') + '</select>' + (L.offline ? '<p class="desc">GitHub\'s file list isn\'t available right now (' + esc(L.offline) + '), so these are FightClub5eXML\'s usual collections.</p>' : '') +
+      }).join('') + '</select>' + (L.truncated ? '<p class="desc"><b>This repository is too large for GitHub to list in full,</b> so some files may be missing from the menu. A folder link narrows it down.</p>' : '') +
+        (L.offline ? '<p class="desc">GitHub\'s file list isn\'t available right now (' + esc(L.offline) + '), so these are FightClub5eXML\'s usual collections.</p>' : '') +
         '<p class="desc">Collections pull in every book they list; the Complete Compendium is over a thousand files and takes a few minutes.</p></div>' +
         '<div class="chips"><button type="button" class="btn btn-primary" data-ghimport="1"' + (gh.busy ? ' disabled' : '') + '>Import from GitHub</button></div>';
     }
@@ -1766,21 +1928,26 @@
     renderHeader();
     var primary = $('#primary');
     var y = window.scrollY;
+    var focusId = document.activeElement && primary.contains(document.activeElement) ? document.activeElement.id : '';
     if (!b.inventory) b.inventory = [];
     if (!b.companions) b.companions = [];
     if (!b.options) b.options = { legacySpells: false };
     if (!b.ruleset) b.ruleset = D.rulesetOf(b);
     if (b.gear && b.gear.shield === true) b.gear.shield = 'shield';
     var views = { play: renderPlay, sheet: renderSheet, spells: renderSpells, progression: renderProgression, gear: renderGear, companions: renderCompanions, library: renderLibrary };
-    var html = (views[app.tab] || renderBuild)();
-    if (ev.missing.length && app.tab !== 'library') {
+    var gmv = gmView();
+    if (tabsFor(profile()).every(function (t) { return t[0] !== app.tab; })) app.tab = tabsFor(profile())[0][0];
+    var html = isGmTab(app.tab) ? D.gm.render(app.tab) : (views[app.tab] || renderBuild)();
+    html = welcomeCard() + html;
+    if (ev.missing.length && app.tab !== 'library' && !gmv) {
       html = '<section class="card notice"><div class="card-body"><p><b>Part of this build isn\'t loaded.</b> Its ' + esc(ev.missing.join(' and ')) +
         ' comes from a compendium that isn\'t imported in this browser, so a stand-in is shown. Import the same compendium in <button type="button" class="linklike" data-tab="library">Library</button> to see it.</p></div></section>' + html;
     }
     primary.innerHTML = html;
     $('#summary').innerHTML = renderSummary();
-    document.querySelector('.cols').classList.toggle('wide', app.tab === 'progression' || app.tab === 'library');
+    document.querySelector('.cols').classList.toggle('wide', app.tab === 'progression' || app.tab === 'library' || gmv);
     window.scrollTo(0, y);
+    if (focusId && !app.modal) { var keep = document.getElementById(focusId); if (keep && document.activeElement !== keep) { try { keep.focus({ preventScroll: true }); } catch (e) { keep.focus(); } } }
     if (app.modal) renderModal();
     if (app.print) renderPrint();
     renderTray();
@@ -1795,7 +1962,11 @@
     if (t.id !== 'delete-btn' && app.deleteArmed) { app.deleteArmed = false; renderHeader(); }
     if (!t.dataset.clearcomp && app.clearArmed) { app.clearArmed = false; }
 
+    if (/^Import failed/.test(app.importing) && !t.closest('.gh-import')) app.importing = '';
     if (t.dataset.tab) { app.tab = t.dataset.tab; window.scrollTo(0, 0); commit(); return; }
+    if (t.dataset.profile) { setProfile(t.dataset.profile); return; }
+    if (t.dataset.gm) { D.gm.click(t); return; }
+    if (t.dataset.iomode) { app.io = t.dataset.iomode; app.modal = { type: 'io' }; $('#modal').hidden = true; renderModal(); return; }
     if (t.dataset.level) {
       setLevel(+t.dataset.level);
       if (app.tab === 'build' && t.closest('#rail')) {
@@ -1840,7 +2011,8 @@
       commit(); return;
     }
     if (t.dataset.rmweapon) {
-      b.gear.weapons = b.gear.weapons.filter(function (w) { return w !== t.dataset.rmweapon; });
+      var wi = b.gear.weapons.indexOf(t.dataset.rmweapon);
+      if (wi >= 0) b.gear.weapons.splice(wi, 1);
       commit(); return;
     }
     if (t.dataset.close) { closeModal(); return; }
@@ -1871,7 +2043,7 @@
       app.gh.url = g.url;
       githubImport({ owner: g.owner, repo: g.repo, ref: g.ref, path: g.path }, g.start, g.target); return;
     }
-    if (t.dataset.roll) { doRoll(t.dataset.roll, t.dataset.rlabel); return; }
+    if (t.dataset.roll) { doRoll(t.dataset.roll, t.dataset.rlabel, !!t.dataset.pc); return; }
     if (t.dataset.tray === 'toggle') { app.trayOpen = !app.trayOpen; renderTray(); return; }
     if (t.dataset.tray === 'clear') { app.rolls = []; renderTray(); return; }
     if (t.dataset.rollmode != null) { app.rollMode = t.dataset.rollmode; renderTray(); return; }
@@ -1908,13 +2080,19 @@
     if (t.dataset.io === 'import') {
       try {
         var nb = JSON.parse($('#io-text').value);
-        if (!nb || typeof nb !== 'object' || !nb.classId || !nb.base) throw new Error('missing fields');
-        var fresh = D.newBuild();
-        Object.keys(fresh).forEach(function (k) { if (nb[k] === undefined) nb[k] = fresh[k]; });
-        nb.id = fresh.id; nb.name = (nb.name || 'Imported') + ' (imported)';
+        if (nb && typeof nb === 'object' && (nb.levelwrightBackup || Array.isArray(nb.builds))) {
+          var what = importBackup(nb);
+          save(); render();
+          $('#io-msg').textContent = what ? 'Imported ' + what + '.' : 'Nothing new to import: everything in that backup is already here.';
+          return;
+        }
+        nb = sanitizeBuild(nb);
+        if (!nb) throw new Error('not a build');
+        nb.id = D.newBuild().id; nb.name = (nb.name === 'Unnamed' ? 'Imported' : nb.name) + ' (imported)';
         app.builds.push(nb); app.currentId = nb.id; closeModal(); commit();
       } catch (err) {
-        $('#io-msg').textContent = 'That text isn\'t a build. Paste the full text from another build\'s Export.';
+        var ioMsg = $('#io-msg');
+        if (ioMsg) ioMsg.textContent = 'That text isn\'t a character or a backup, or it has data this app can\'t read. Paste the full text from Export.';
       }
       return;
     }
@@ -1941,6 +2119,9 @@
 
   function onChange(e) {
     var t = e.target, b = cur();
+    if (t.id === 'profile-select') { setProfile(t.value); return; }
+    if (t.dataset.gmf) { D.gm.change(t); return; }
+    app.deleteArmed = false;
     if (t.id === 'build-select') { app.currentId = t.value; commit(); return; }
     if (t.id === 'build-name') { b.name = t.value.trim() || 'Unnamed'; commit(); return; }
     if (t.dataset.choice) { setChoice(t.dataset.choice, t.value); return; }
@@ -1952,7 +2133,7 @@
         var other = D.ABILITIES.filter(function (x) { return x !== a && b.base[x] === v; })[0];
         if (other) b.base[other] = b.base[a];
       }
-      b.base[a] = Math.max(1, Math.min(30, v));
+      b.base[a] = b.abilityMethod === 'pointbuy' ? Math.max(8, Math.min(15, v)) : Math.max(b.abilityMethod === 'manual' ? 3 : 1, Math.min(b.abilityMethod === 'manual' ? 20 : 30, v));
       commit(); return;
     }
     if (t.dataset.mfilter) { app.modal.f[t.dataset.mfilter] = t.value; app.modal.limit = 150; renderModal(); return; }
@@ -2044,9 +2225,9 @@
     } else if (ds.rest) {
       rest(ds.rest);
     } else if (ds.hd) {
-      var die = +ds.hd, r = doRoll('1d' + die + sign(d.mods.con), 'Hit Die');
+      var die = +ds.hd, r = doRoll('1d' + die + sign(d.mods.con), 'Hit Die', false, { noCrit: true });
       p.used['hd:' + die] = used('hd:' + die) + 1;
-      p.hp = Math.min(d.hp, curHp(d) + Math.max(0, r.total));
+      p.hp = Math.min(d.hp, curHp(d) + Math.max(1, r.total));   // a Hit Die always restores at least 1
     } else if (ds.acb) {
       p.acBonus = (p.acBonus || 0) + +ds.acb;
     } else if (ds.insp) {
@@ -2056,7 +2237,8 @@
       if (!v || !sp) return true;
       p.used[v[0]] = used(v[0]) + 1;
       var info = D.spellDice(sp, b.level);
-      if (info) doRoll(D.spellDiceAt(info, sp.level, +v[1]).replace('MOD', ds.mod).replace('+-', '-'), sp.name + ' (level ' + v[1] + ')' + (info.type === 'healing' ? ' healing' : ''));
+      var heals = info && /healing|temporary/.test(info.type);
+      if (info) doRoll(D.spellDiceAt(info, sp.level, +v[1]).replace('MOD', ds.mod).replace('+-', '-'), sp.name + ' (level ' + v[1] + ')' + (heals ? ' ' + info.type : ''), false, { noCrit: heals });
     } else if (ds.delcustom) {
       p.custom = (p.custom || []).filter(function (c) { return c.id !== ds.delcustom; });
       delete p.used['custom:' + ds.delcustom];
@@ -2075,6 +2257,7 @@
       commit(); return;
     }
     if (e.target.id === 'hp-form') { e.preventDefault(); return; }
+    if (e.target.dataset.gmform) { e.preventDefault(); D.gm.submit(e.target); return; }
     if (e.target.id === 'gh-form') { e.preventDefault(); githubFind($('#gh-url').value); return; }
     if (e.target.id === 'custom-item-form') {
       e.preventDefault();
@@ -2137,10 +2320,12 @@
   function onKey(e) {
     if (e.key === 'Escape' && app.modal) { closeModal(); return; }
     if (e.key === 'Escape' && app.print) { app.print = null; renderPrint(); return; }
+    if (e.key === 'Tab' && app.modal) { trapTab(e); return; }
     var tag = (e.target.tagName || '').toLowerCase();
-    if (tag === 'input' || tag === 'select' || tag === 'textarea' || app.modal) return;
-    if (e.key === 'ArrowLeft' || e.key === '[') setLevel(cur().level - 1);
-    if (e.key === 'ArrowRight' || e.key === ']') setLevel(cur().level + 1);
+    // Leave browser shortcuts (Alt+Left is Back) alone, and only step levels on the character screens.
+    if (e.altKey || e.ctrlKey || e.metaKey || tag === 'input' || tag === 'select' || tag === 'textarea' || tag === 'summary' || app.modal || app.print || gmView()) return;
+    if (e.key === 'ArrowLeft' || e.key === '[') { app.deleteArmed = false; setLevel(cur().level - 1); }
+    if (e.key === 'ArrowRight' || e.key === ']') { app.deleteArmed = false; setLevel(cur().level + 1); }
   }
 
   document.addEventListener('click', onClick);
@@ -2150,16 +2335,20 @@
   document.addEventListener('submit', onSubmit);
   $('#modal').addEventListener('click', function (e) { if (e.target.id === 'modal') closeModal(); });
 
+  // Shared helpers for the Game Master module (js/gm.js).
+  D.ui = { app: app, esc: esc, $: $, find: find, ico: ico, badge: badge, sign: sign, rollBtn: rollBtn, d20Btn: d20Btn, rollify: rollify, fmt: fmt,
+    statBlock: statBlock, openDetail: openDetail, openModal: openModal, closeModal: closeModal, renderModal: renderModal, commit: commit, save: save, doRoll: doRoll,
+    conditionBadge: conditionBadge };
+
   load();
+  D.gm.sync();
   setupPwa();
   // A build handed over in the link (#import=…) opens straight to its printable sheet.
   var handoff = /^#import=(.+)$/.exec(location.hash || '');
   if (handoff) {
     try {
-      var nb = decodeBuild(decodeURIComponent(handoff[1]));
-      if (nb && nb.classId && nb.base) {
-        var fresh = D.newBuild();
-        Object.keys(fresh).forEach(function (k) { if (nb[k] === undefined) nb[k] = fresh[k]; });
+      var nb = sanitizeBuild(decodeBuild(decodeURIComponent(handoff[1])));
+      if (nb) {
         app.builds = app.builds.filter(function (x) { return x.id !== nb.id; }).concat(nb);
         app.currentId = nb.id; app.tab = 'sheet'; app.print = { full: false };
         save();
@@ -2168,12 +2357,15 @@
     try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* ignore */ }
   }
   var hashTab = (location.hash || '').replace('#', '');
-  if (['build', 'sheet', 'play', 'gear', 'spells', 'companions', 'library', 'progression'].indexOf(hashTab) >= 0) app.tab = hashTab;
+  if (PLAYER_TABS.concat(GM_TABS, [['library']]).some(function (t) { return t[0] === hashTab; })) {
+    app.tab = hashTab;
+    if (isGmTab(hashTab) && profile() === 'player') app.profile = 'both';
+  }
   D.registerContent();
   $('#primary').innerHTML = '<section class="card"><div class="card-body"><p class="muted">Loading your saved compendium…</p></div></section>';
   // Wait briefly for an imported compendium so builds that use it render correctly.
   var started = false;
-  function start() { if (started) return; started = true; app.ready = true; render(); }
+  function start() { if (started) { render(); return; } started = true; app.ready = true; render(); }
   D.loadStoredCompendium().then(function (rec) { if (rec) D.registerContent(); start(); }, start);
   setTimeout(start, 4000);
 })();
