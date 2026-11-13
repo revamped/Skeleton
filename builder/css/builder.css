@@ -722,3 +722,4 @@ textarea { width: 100%; font: inherit; padding: 7px 10px; border: 1px solid var(
   .trk-hpctl { margin-top: 0; }
   .trk-actions { margin-left: 0; }
 }
+.tab .ico { width: 1em; height: 1em; margin-right: 6px; vertical-align: -0.12em; }

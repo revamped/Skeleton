@@ -65,6 +65,7 @@ Shown with the Game Master or Player + GM profile.
   - Each combatant has HP with Hit and Heal, conditions with their icons, and Defeat/Revive. **Next turn** skips defeated creatures and counts rounds.
   - The stat block of whoever's turn it is shows below the tracker; attack rolls and damage in it are clickable and roll into the dice tray.
   - Add creatures or anyone else mid-fight. XP earned so far is totalled and split between the characters.
+  - For linked characters, HP and conditions changed in the tracker are written back to the character, so their Play tab and summary panel agree with it.
 - **Creatures**: build your own creatures, or start from any existing one. They join the bestiary for encounters and companions.
   - The form covers size, type, CR, AC, Hit Dice (HP is worked out from size and Constitution), abilities and save proficiencies, senses, defenses, and traits, actions, bonus actions, reactions and legendary actions. **Quick attack** writes an attack with the right attack bonus and average damage.
   - **Power check** compares the creature's Hit Points, AC, attack bonus, save DC and damage per round with a typical creature of its CR, and estimates a defensive, offensive and overall CR. "Typical" is the median of the SRD creatures at each CR, and damage per round is read from the action text (multiattack, recharge and legendary actions included). It's an estimate: traits, resistances and spells aren't counted.

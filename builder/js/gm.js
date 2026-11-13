@@ -112,7 +112,7 @@
       '<p class="desc">No party yet, so encounters are balanced for a quick party:</p><div class="gear-grid" style="max-width:360px">' +
       '<div class="field"><label for="q-size">Characters</label><input id="q-size" type="number" min="1" max="12" value="' + g.quick.size + '" data-gmf="quick" data-k="size"></div>' +
       '<div class="field"><label for="q-level">Level</label><input id="q-level" type="number" min="1" max="20" value="' + g.quick.level + '" data-gmf="quick" data-k="level"></div></div>';
-    return '<div class="toolbar"><h2>Party</h2><span class="muted" id="gm-party-line">' + esc(partyLine()) + '</span></div>' +
+    return '<div class="toolbar"><h2>' + U().ico('gmParty', 'ico-title') + 'Party</h2><span class="muted" id="gm-party-line">' + esc(partyLine()) + '</span></div>' +
       '<section class="card"><div class="card-head"><h3>Characters</h3><span class="muted">Used to balance encounters and fill the initiative tracker</span></div><div class="card-body">' + table +
       '<div class="chips" style="margin-top:12px">' + (free.length ? '<label class="sr" for="party-build">Your characters</label><select id="party-build" style="width:auto">' + free.map(function (b) {
         return '<option value="' + esc(b.id) + '">' + esc(b.name || 'Unnamed') + ' · level ' + b.level + '</option>'; }).join('') + '</select><button type="button" class="btn btn-primary" data-gm="party-link">Add this character</button>' : '') +
@@ -154,7 +154,7 @@
     var picker = g.encounters.length ? '<label class="sr" for="enc-select">Encounter</label><select id="enc-select" data-gmf="enc-select" style="width:auto;max-width:100%">' + g.encounters.map(function (e) {
       var d = encDifficulty(e);
       return '<option value="' + esc(e.id) + '"' + (enc && e.id === enc.id ? ' selected' : '') + '>' + esc(e.name || 'Encounter') + (d.tier >= 0 ? ' · ' + d.label : '') + (e.run ? ' · running' : '') + '</option>'; }).join('') + '</select>' : '';
-    var head = '<div class="toolbar"><h2>Encounters</h2><div class="chips">' + picker + '<button type="button" class="btn btn-primary" data-gm="enc-new">New encounter</button>' +
+    var head = '<div class="toolbar"><h2>' + U().ico('gmEncounter', 'ico-title') + 'Encounters</h2><div class="chips">' + picker + '<button type="button" class="btn btn-primary" data-gm="enc-new">New encounter</button>' +
       (enc ? '<button type="button" class="btn" data-gm="enc-copy">Duplicate</button><button type="button" class="btn btn-danger' + (armed === enc.id ? ' armed' : '') + '" data-gm="enc-del">' + (armed === enc.id ? 'Confirm delete' : 'Delete') + '</button>' : '') + '</div></div>';
     if (!enc) {
       return head + '<section class="card"><div class="card-body"><p>Build an encounter from the ' + (D.MONSTERS || []).length.toLocaleString() + ' creatures available, see how hard it is for your party, then run it with the initiative tracker.</p>' +
@@ -198,7 +198,9 @@
   function startRun(enc) {
     var g = state(), list = [];
     partyStats().forEach(function (p) {
-      list.push({ key: 'pc-' + p.id, kind: 'pc', ref: p.buildId || '', name: p.name, init: null, bonus: p.init || 0, hp: p.hpNow, max: p.hp, ac: p.ac, pp: p.pp, level: p.level, conds: {}, dead: false });
+      var b = p.buildId && find(U().app.builds, p.buildId), pl = b && b.play || {}, conds = {};
+      Object.keys(pl.conds || {}).forEach(function (k) { if (pl.conds[k]) conds[k] = true; });
+      list.push({ key: 'pc-' + p.id, kind: 'pc', ref: p.buildId || '', name: p.name, init: null, bonus: p.init || 0, hp: p.hpNow, max: p.hp, temp: +pl.temp || 0, ac: p.ac, pp: p.pp, level: p.level, conds: conds, dead: false });
     });
     encMonsters(enc).forEach(function (x) {
       var st = x.m ? D.monsterStats(x.m) : { init: 0 }, shared = g.opts.group ? d20() + st.init : null;
@@ -219,6 +221,15 @@
       if (!ord[i].dead) break;
     }
     run.turn = ord[i].key;
+  }
+  // A linked character's HP and conditions are written back, so their Play tab and summary agree with the tracker.
+  function syncToCharacter(c) {
+    var b = c.kind === 'pc' && c.ref && find(U().app.builds, c.ref);
+    if (!b) return;
+    var p = U().playOf(b);
+    if (c.max != null) { p.hp = c.hp >= c.max ? null : c.hp; p.temp = c.temp || 0; }
+    p.conds = {};
+    Object.keys(c.conds || {}).forEach(function (k) { if (k !== 'Exhaustion') p.conds[k] = true; });
   }
   function condChips(c) {
     return Object.keys(c.conds || {}).map(function (k) {
@@ -243,7 +254,7 @@
   }
   function renderRun() {
     var g = state(), ui = U(), enc = curEnc();
-    var head = '<div class="toolbar"><h2>Run encounter</h2>' + (g.encounters.length > 1 ? '<div class="chips"><label class="sr" for="run-select">Encounter</label><select id="run-select" data-gmf="enc-select" style="width:auto;max-width:100%">' +
+    var head = '<div class="toolbar"><h2>' + U().ico('gmRun', 'ico-title') + 'Run encounter</h2>' + (g.encounters.length > 1 ? '<div class="chips"><label class="sr" for="run-select">Encounter</label><select id="run-select" data-gmf="enc-select" style="width:auto;max-width:100%">' +
       g.encounters.map(function (e) { return '<option value="' + esc(e.id) + '"' + (enc && e.id === enc.id ? ' selected' : '') + '>' + esc(e.name || 'Encounter') + (e.run ? ' · running' : '') + '</option>'; }).join('') + '</select></div>' : '') + '</div>';
     if (!enc) return head + '<section class="card"><div class="card-body"><p>There\'s no encounter to run yet.</p><button type="button" class="btn btn-primary" data-tab="gm-encounters">Build an encounter</button></div></section>';
     if (!enc.run) return head + runSetup(enc);
@@ -264,7 +275,7 @@
     }).join('');
     var mcur = cur && cur.kind === 'mon' ? D.monster(cur.ref) : null;
     var onTurn = cur ? '<section class="card"><div class="card-head"><h3>On turn: ' + esc(cur.name) + '</h3><span class="muted">' + (cur.max != null ? cur.hp + ' / ' + cur.max + ' HP' : '') + (cur.ac != null ? ' · AC ' + cur.ac : '') + '</span></div><div class="card-body">' +
-      (mcur ? ui.statBlock(mcur) : cur.kind === 'pc' ? '<p class="desc">' + esc(cur.name) + '\'s turn. ' + (cur.ref ? 'Their sheet is under the player tabs.' : '') + '</p>' : '<p class="desc">No stat block for this combatant.</p>') + '</div></section>' : '';
+      (mcur ? ui.statBlock(mcur) : cur.kind === 'pc' ? '<p class="desc">' + esc(cur.name) + '\'s turn. ' + (cur.ref ? 'This is a linked character: HP and conditions changed here show on their Play tab too.' : '') + '</p>' : '<p class="desc">No stat block for this combatant.</p>') + '</div></section>' : '';
     var defeated = run.list.filter(function (c) { return c.kind === 'mon' && c.dead; }), xp = defeated.reduce(function (n, c) { return n + D.crXp(c.cr); }, 0);
     var pcs = run.list.filter(function (c) { return c.kind === 'pc'; }).length || 1;
     var left = run.list.filter(function (c) { return c.kind === 'mon' && !c.dead; }).length;
@@ -345,7 +356,7 @@
   }
   function renderCreatures() {
     var g = state(), c = curCreature();
-    var head = '<div class="toolbar"><h2>Creatures</h2><div class="chips"><button type="button" class="btn btn-primary" data-gm="cre-new">New creature</button><button type="button" class="btn" data-openlist="gm-copy">Start from an existing creature</button></div></div>';
+    var head = '<div class="toolbar"><h2>' + U().ico('gmCreature', 'ico-title') + 'Creatures</h2><div class="chips"><button type="button" class="btn btn-primary" data-gm="cre-new">New creature</button><button type="button" class="btn" data-openlist="gm-copy">Start from an existing creature</button></div></div>';
     var mine = g.creatures.length ? '<div class="chips cre-list">' + g.creatures.map(function (x) {
       return '<button type="button" class="btn btn-small' + (c && x.id === c.id ? ' btn-primary' : '') + '" data-gm="cre-edit" data-id="' + esc(x.id) + '">' + U().ico(D.creatureIcon({ type: String(x.type).toLowerCase() })) + ' ' + esc(x.name || 'Unnamed') + ' <span class="' + (c && x.id === c.id ? '' : 'muted') + '">CR ' + esc(D.crKey(x.cr)) + '</span></button>';
     }).join('') + '</div>' : '';
@@ -441,7 +452,7 @@
       case 'run-next': if (enc && enc.run) advance(enc.run, 1); break;
       case 'run-prev': if (enc && enc.run) advance(enc.run, -1); break;
       case 'run-rollpc': if (enc && enc.run) enc.run.list.forEach(function (x) { if (x.init == null) x.init = d20() + (x.bonus || 0); }); break;
-      case 'run-reroll': if (enc && enc.run) { enc.run.list.forEach(function (x) { x.init = d20() + (x.bonus || 0); }); enc.run.round = 1; enc.run.turn = order(enc.run)[0].key; } break;
+      case 'run-reroll': if (enc && enc.run && enc.run.list.length) { enc.run.list.forEach(function (x) { x.init = d20() + (x.bonus || 0); }); enc.run.round = 1; enc.run.turn = order(enc.run)[0].key; } break;
       case 'run-end':
         if (!enc || !enc.run) break;
         if (wasArmed !== 'run') { armed = 'run'; break; }
@@ -453,12 +464,13 @@
           var soak = Math.min(it.temp || 0, amt); it.temp = (it.temp || 0) - soak; it.hp = Math.max(0, it.hp - (amt - soak));
           if (it.hp === 0 && it.kind === 'mon') it.dead = true;
         } else { it.hp = Math.min(it.max, it.hp + amt); if (it.hp > 0) it.dead = false; }
+        syncToCharacter(it);
         break;
       }
       case 'run-dead': { var it2 = runItem(); if (it2) { it2.dead = !it2.dead; if (it2.dead && enc.run.turn === it2.key) advance(enc.run, 1); } break; }
       case 'run-rm': if (enc && enc.run) { if (enc.run.turn === ds.key) advance(enc.run, 1); enc.run.list = enc.run.list.filter(function (x) { return x.key !== ds.key; }); if (!enc.run.list.length) enc.run.turn = null; } break;
       case 'run-conds': condModal(ds.key); ui.renderModal(); return;
-      case 'run-cond': { var it3 = runItem(); if (it3) { it3.conds = it3.conds || {}; if (it3.conds[ds.cond]) delete it3.conds[ds.cond]; else it3.conds[ds.cond] = true; condModal(ds.key); } break; }
+      case 'run-cond': { var it3 = runItem(); if (it3) { it3.conds = it3.conds || {}; if (it3.conds[ds.cond]) delete it3.conds[ds.cond]; else it3.conds[ds.cond] = true; syncToCharacter(it3); condModal(ds.key); } break; }
       /* creatures */
       case 'cre-new': { var nc = D.newCreatureModel(); g.creatures.push(nc); g.editing = nc.id; gm.sync(); break; }
       case 'cre-edit': g.editing = ds.id; break;

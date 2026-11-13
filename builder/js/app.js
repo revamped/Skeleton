@@ -185,7 +185,7 @@
   /* ---------- Profiles: player, Game Master or both ---------- */
 
   var PLAYER_TABS = [['build', 'Build'], ['sheet', 'Sheet'], ['play', 'Play'], ['gear', 'Gear'], ['spells', 'Spells'], ['companions', 'Companions'], ['progression', 'All 20 levels']];
-  var GM_TABS = [['gm-encounters', 'Encounters'], ['gm-run', 'Run'], ['gm-creatures', 'Creatures'], ['gm-party', 'Party']];
+  var GM_TABS = [['gm-encounters', 'Encounters', 'gmEncounter'], ['gm-run', 'Run', 'gmRun'], ['gm-creatures', 'Creatures', 'gmCreature'], ['gm-party', 'Party', 'gmParty']];
   var PROFILES = [['player', 'Player'], ['gm', 'Game Master'], ['both', 'Player + GM']];
   function profile() { return app.profile || 'player'; }
   function tabsFor(p) { return (p === 'gm' ? [] : PLAYER_TABS).concat(p === 'player' ? [] : GM_TABS, [['library', 'Library']]); }
@@ -219,7 +219,7 @@
     $('#tabs').innerHTML = tabsFor(profile()).map(function (t) {
       var sep = isGmTab(t[0]) && !gmFirst && profile() === 'both' ? '<span class="tab-sep" aria-hidden="true">GM</span>' : '';
       if (isGmTab(t[0])) gmFirst = true;
-      return sep + '<button type="button" class="tab' + (t[0] === app.tab ? ' active' : '') + '" data-tab="' + t[0] + '"' + (t[0] === app.tab ? ' aria-current="page"' : '') + '>' + t[1] + '</button>';
+      return sep + '<button type="button" class="tab' + (t[0] === app.tab ? ' active' : '') + '" data-tab="' + t[0] + '"' + (t[0] === app.tab ? ' aria-current="page"' : '') + '>' + (t[2] ? ico(t[2]) : '') + t[1] + '</button>';
     }).join('');
     $('#build-select').innerHTML = app.builds.map(function (x) {
       var c = D.cls(x.classId);
@@ -419,16 +419,6 @@
         return groups.length > 1 ? '<optgroup label="' + esc(gr.label) + '">' + inner + '</optgroup>' : inner;
       }).join('') + '</select>' +
       '<span class="muted sub-count">' + total + ' option' + (total === 1 ? '' : 's') + ' for ' + esc(g.name) + '</span></div>';
-  }
-  function selectField(id, label, list, value, descFn) {
-    var groups = contentGroups(list);
-    var opts = groups.map(function (g) {
-      var inner = g[1].map(function (x) { return '<option value="' + esc(x.id) + '"' + (x.id === value ? ' selected' : '') + '>' + esc(x.name) + '</option>'; }).join('');
-      return groups.length > 1 ? '<optgroup label="' + esc(g[0]) + '">' + inner + '</optgroup>' : inner;
-    }).join('');
-    var curItem = find(list, value);
-    return '<div class="field"><label for="' + id + '">' + label + '</label><select id="' + id + '">' + opts +
-      '</select>' + (descFn && curItem ? '<p class="desc">' + esc(descFn(curItem)) + (curItem.src ? ' · ' + esc(curItem.src) : '') + '</p>' : '') + '</div>';
   }
 
   // Paragraph formatting for compendium text.
@@ -886,11 +876,12 @@
   /* ---------- Rendering: play (table tracking) ---------- */
 
   // Play state lives on the build: current HP, used resources and turn markers.
-  function play() {
-    var b = cur();
-    if (!b.play) b.play = { hp: null, temp: 0, acBonus: 0, used: {}, death: { s: 0, f: 0 }, exh: 0, insp: false, turn: {}, round: 1, custom: [] };
-    return b.play;
+  function playOf(b) {
+    var p = b.play && typeof b.play === 'object' ? b.play : (b.play = {}), dflt = { hp: null, temp: 0, acBonus: 0, used: {}, death: { s: 0, f: 0 }, exh: 0, insp: false, turn: {}, conds: {}, round: 1, custom: [] };
+    Object.keys(dflt).forEach(function (k) { if (p[k] === undefined || (dflt[k] && typeof dflt[k] === 'object' && (!p[k] || typeof p[k] !== 'object'))) p[k] = dflt[k]; });
+    return p;
   }
+  function play() { return playOf(cur()); }
   function curHp(d) { var p = play(); return p.hp == null ? d.hp : Math.max(0, Math.min(p.hp, d.hp)); }
   function used(id) { return play().used[id] || 0; }
   function hpBar(d, compact) {
@@ -1086,7 +1077,6 @@
 
   function openModal(m) { m.q = ''; m.f = {}; m.limit = 150; app.modal = m; renderModal(); }
   function openPicker(key) { openModal({ type: 'choice', key: key }); }
-  function openSpellPicker(kind) { openModal({ type: 'spells', kind: kind }); }
   function openList(kind) { openModal({ type: 'list', kind: kind }); }
   var modalReturn = null;
   function closeModal() {
@@ -1107,7 +1097,7 @@
   function filterBar(filters) {
     var m = app.modal;
     if (!filters || !filters.length) return '';
-    var active = filters.filter(function (f) { return m.f[f.id]; }).length;
+    var active = filters.filter(function (f) { return m.f[f.id] && !(f.noAny && m.f[f.id] === f.values[0][0]); }).length;
     return '<div class="dialog-filters">' + filters.map(function (f) {
       return '<label class="mini-field"><span>' + esc(f.label) + '</span><select data-mfilter="' + esc(f.id) + '">' +
         (f.noAny ? '' : '<option value="">Any</option>') + f.values.map(function (v) {
@@ -1297,7 +1287,7 @@
   }
 
   function ioDialog() {
-    var all = app.io === 'all' || gmView();
+    var all = app.io === 'all';
     var json = JSON.stringify(all ? { levelwrightBackup: 1, builds: app.builds, gm: app.gm, profile: app.profile } : cur(), null, 1);
     return '<div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-title"><div class="dialog-head"><h3 id="dlg-title">Export / Import</h3><span class="muted">' +
       (all ? 'Everything saved here: all characters, encounters, your creatures and the party.' : 'Copy this text to back up or share the character.') + ' Paste text here to import it.</span></div>' +
@@ -1309,15 +1299,15 @@
   }
   // Merge a full backup into what's here: anything with an id we don't have is added.
   function importBackup(data) {
-    var added = { characters: 0, encounters: 0, creatures: 0, 'party members': 0 };
+    var added = { character: 0, encounter: 0, creature: 0, 'party member': 0 };
     (Array.isArray(data.builds) ? data.builds : []).forEach(function (raw) {
       var nb = sanitizeBuild(raw);
       if (!nb || find(app.builds, nb.id)) return;
-      app.builds.push(nb); added.characters++;
+      app.builds.push(nb); added.character++;
     });
     if (data.gm && typeof data.gm === 'object') {
       var gm = D.gm.state();
-      [['encounters', 'encounters'], ['creatures', 'creatures'], ['party', 'party members']].forEach(function (k) {
+      [['encounters', 'encounter'], ['creatures', 'creature'], ['party', 'party member']].forEach(function (k) {
         (Array.isArray(data.gm[k[0]]) ? data.gm[k[0]] : []).forEach(function (raw) {
           var x = D.gm.clean(k[0], raw);
           if (x && !find(gm[k[0]], x.id)) { gm[k[0]].push(x); added[k[1]]++; }
@@ -1326,7 +1316,7 @@
       D.gm.sync();
     }
     if (!app.profile && /^(player|gm|both)$/.test(data.profile)) app.profile = data.profile;
-    return Object.keys(added).filter(function (k) { return added[k]; }).map(function (k) { return added[k] + ' ' + k; }).join(', ');
+    return Object.keys(added).filter(function (k) { return added[k]; }).map(function (k) { return added[k] + ' ' + k + (added[k] === 1 ? '' : 's'); }).join(', ');
   }
 
   /* ---------- Rendering: gear & inventory ---------- */
@@ -1437,7 +1427,7 @@
 
   function abilityLine(m) {
     return '<div class="sb-abilities">' + D.ABILITIES.map(function (a) {
-      return '<div><span class="eyebrow">' + a + '</span><b>' + m[a] + '</b><small>' + sign(D.mod(m[a])) + '</small></div>';
+      return '<div><span class="eyebrow">' + a + '</span><b>' + (+m[a] || 10) + '</b><small>' + sign(D.mod(+m[a] || 10)) + '</small></div>';
     }).join('') + '</div>';
   }
   function statBlock(m) {
@@ -1636,19 +1626,6 @@
       }).sort(function (a, c) { return a.order - c.order || a.label.localeCompare(c.label); });
       return { title: 'Choose a species', current: 'base:' + speciesBase(ev.species.name).toLowerCase(), options: opts,
         filters: [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, { id: 'size', label: 'Size', values: facetValues(opts, 'size') }, sourceFilter(opts)] };
-    }
-    if (kind === 'class' || kind === 'species' || kind === 'background') {
-      var list = pool(kind);
-      opts = list.map(function (x) {
-        var meta = kind === 'class' ? 'd' + x.hd + ' · ' + allowedSubs(x).length + ' subclasses' + (x.caster ? ' · spellcaster' : '') :
-          kind === 'species' ? (x.size || '') + ' · Speed ' + x.speed + (x.darkvision ? ' · Darkvision ' + x.darkvision : '') :
-          x.custom ? 'any abilities' : x.legacy ? '2014 background' : 'Feat: ' + (x.featName || '');
-        return { id: x.id, label: x.name, group: rulesGroup(x), order: !x.compendium ? 0 : x.ed === '2024' ? 1 : 2, meta: meta + (x.src ? ' · ' + x.src : ''),
-          search: (x.name + ' ' + (x.src || '')).toLowerCase(), facets: { rules: rulesGroup(x), src: x.src || 'SRD 5.2', size: x.size || '' } };
-      }).sort(function (a, c) { return a.order - c.order || (a.order ? a.label.localeCompare(c.label) : 0); });
-      filters = [{ id: 'rules', label: 'Rules', values: facetValues(opts, 'rules') }, sourceFilter(opts)];
-      if (kind === 'species') filters.splice(1, 0, { id: 'size', label: 'Size', values: facetValues(opts, 'size') });
-      return { title: 'Choose a ' + kind, current: kind === 'class' ? b.classId : kind === 'species' ? b.speciesId : b.backgroundId, options: opts, filters: filters };
     }
     return { title: '', options: [], filters: [] };
   }
@@ -2111,7 +2088,7 @@
         app.builds = app.builds.filter(function (x) { return x.id !== b.id; });
         if (!app.builds.length) app.builds.push(D.newBuild());
         app.currentId = app.builds[0].id; commit(); break;
-      case 'io': app.modal = { type: 'io' }; renderModal(); break;
+      case 'io': app.io = gmView() ? 'all' : 'build'; app.modal = { type: 'io' }; renderModal(); break;
       case 'install': installApp(); break;
       case 'reload': location.reload(); break;
     }
@@ -2137,7 +2114,6 @@
       commit(); return;
     }
     if (t.dataset.mfilter) { app.modal.f[t.dataset.mfilter] = t.value; app.modal.limit = 150; renderModal(); return; }
-    if (t.id === 'f-species') { b.speciesId = t.value; commit(); return; }
     if (t.id === 'f-subspecies' && t.value) {
       var parts = t.value.split('|');
       b.speciesId = parts[0];
@@ -2145,12 +2121,9 @@
       if (ls && parts[1]) b.choices['sp.' + parts[0] + '.' + ls.id] = parts[1];
       commit(); return;
     }
-    if (t.id === 'f-bg') { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'f-subbg' && t.value) { b.backgroundId = t.value; commit(); return; }
     if (t.id === 'f-classver' && t.value) { setClass(t.value); commit(); return; }
     if (t.id === 'f-subclass') { setChoice(ev.cls.id + '.subclass', t.value); return; }
-    if (t.id === 'g-armor') { b.gear.armor = t.value; commit(); return; }
-    if (t.id === 'g-shield') { b.gear.shield = t.value || false; commit(); return; }
     if (t.id === 'ps-full') { app.print.full = t.checked; renderPrint(); return; }
     if (t.id === 'roll-crit') { app.rollCrit = t.checked; return; }
     if (t.id === 'nc-legacy') {
@@ -2167,7 +2140,6 @@
     if (t.dataset.cmpqty !== undefined) { b.companions[+t.dataset.cmpqty].qty = Math.max(1, parseInt(t.value, 10) || 1); commit(); return; }
     if (t.id === 'lib-f1' || t.id === 'lib-f2') { app.lib[t.id.slice(4)] = t.value; save(); render(); return; }
     if (t.id === 'import-file' && t.files && t.files.length) { runImport(t.files); return; }
-    if (t.id === 'g-add' && t.value) { b.gear.weapons = (b.gear.weapons || []).concat(t.value); commit(); return; }
     if (t.dataset.toggle) {
       var rec = findRec(app.modal.key);
       var vals = (Array.isArray(rec.value) ? rec.value : []).slice();
@@ -2338,7 +2310,7 @@
   // Shared helpers for the Game Master module (js/gm.js).
   D.ui = { app: app, esc: esc, $: $, find: find, ico: ico, badge: badge, sign: sign, rollBtn: rollBtn, d20Btn: d20Btn, rollify: rollify, fmt: fmt,
     statBlock: statBlock, openDetail: openDetail, openModal: openModal, closeModal: closeModal, renderModal: renderModal, commit: commit, save: save, doRoll: doRoll,
-    conditionBadge: conditionBadge };
+    conditionBadge: conditionBadge, playOf: playOf };
 
   load();
   D.gm.sync();
