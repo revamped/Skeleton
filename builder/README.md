@@ -22,6 +22,15 @@ This copy can print and save PDFs. To turn it on (once), go to the repository's 
   - Extra Attack and Unarmored Defense don't stack
   - imported classes read their requirements and proficiencies from the compendium's multiclass text
 - **Sheet tab**: AC, HP, saves, skills, attacks, class resources, proficiencies and the features gained so far, all computed for the viewed level.
+- **Advisor tab**: answers questions about the character by calculating from the sheet. No AI model, nothing sent anywhere, works offline, and it can be turned off (the tab then shows only a switch to turn it back on).
+  - **Ask about this character**: looks up numbers (AC and how it's worked out, saves, skills, save DC), what's left (uses, spell slots, Hit Dice), and features, traits, feats, spells and conditions by name. Level-up and turn questions are pointed to the cards below.
+  - **This turn**: ranks the Attack action, cantrips and spells by average damage, using the slots and uses that remain.
+    - Averages count misses, critical hits, saves (with half damage where the spell says so), multiple attacks, rays and darts, Sneak Attack, and area spells times the number of enemies you enter.
+    - Target AC defaults to a typical opponent of the character's level (the median SRD creature of that CR) and can be set; Advantage or Disadvantage can be chosen.
+    - It applies conditions and Exhaustion from the Play tab, notes Action Surge, lists Bonus Action and Reaction features, and suggests ways to recover when HP is low.
+    - It can't see the battlefield, and says so.
+  - **Level-up advice**: for any feat slot, every option (+2 to a stat, +1/+1, each feat) is applied to a copy of the build and re-evaluated by the engine, then compared: damage per round, to hit, save DC, HP, AC, initiative, saves and skills. **Choose** applies an option. Benefits that exist only as text are flagged as not measured.
+  - Shortcuts: **What should I do this turn?** on the Play tab, and **Compare the options** next to feat choices on the Build tab.
 - **Play tab**: track a character during a session at the viewed level.
   - **Health**: HP and temp HP bars with Damage, Heal and Temp HP (temp HP absorbs damage first), death saves at 0 HP, a temporary AC bonus, Exhaustion and Heroic Inspiration.
   - **Conditions**: toggle the conditions affecting you. Each has its icon and Immune/Advantage badges from your build. Active ones list their rules here and appear as icon chips in the summary panel on every tab.
@@ -133,6 +142,7 @@ node tools/build-srd.js ./FightClub5eXML
 | `js/github.js` | Import compendium XML from a GitHub repository, folder or file link |
 | `js/gm-rules.js` | Encounter XP budgets and difficulty, stat-block statistics, CR estimate, custom creatures |
 | `js/gm.js` | Game Master screens: party, encounters, initiative tracker, creature builder |
+| `js/advisor.js` | Advisor: hit and damage maths, level-up simulation, turn ranking, sheet lookup, and its screen |
 | `js/print.js` | Printable character sheet and plain-text export |
 | `js/app.js` | UI rendering, events, persistence |
 | `js/vendor/jszip.min.js` | JSZip 3.10.1 (MIT), for .zip compendium imports |
