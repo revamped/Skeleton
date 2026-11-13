@@ -723,3 +723,42 @@ textarea { width: 100%; font: inherit; padding: 7px 10px; border: 1px solid var(
   .trk-actions { margin-left: 0; }
 }
 .tab .ico { width: 1em; height: 1em; margin-right: 6px; vertical-align: -0.12em; }
+
+/* Advisor */
+.adv-chips { margin-top: 8px; }
+.adv-answers { margin-top: 12px; }
+.adv-text { display: block; color: var(--muted); margin-top: 2px; }
+.adv-verdict { margin: 10px 0; padding: 10px 14px; border-left: 3px solid var(--accent); border-radius: 6px; background: var(--accent-soft); }
+.adv-table { width: 100%; }
+.adv-table td { vertical-align: top; }
+.adv-table td.n small { display: block; color: var(--muted); font-size: .75rem; font-weight: 400; }
+.adv-table .up { color: var(--accent); font-weight: 700; }
+.adv-table .down { color: var(--bad); font-weight: 700; }
+.adv-sub { color: var(--muted); font-size: .88rem; margin-top: 2px; }
+tr.adv-current { background: var(--accent-soft); }
+tr.adv-na { opacity: .6; }
+.adv-inputs { margin-bottom: 10px; }
+.adv-notes { margin: 8px 0; }
+.adv-link { margin-left: auto; font-size: .85rem; }
+#adv-level, #adv-turn { scroll-margin-top: 180px; }
+@media (max-width: 700px) {
+  #adv-level, #adv-turn { scroll-margin-top: 10px; }
+  .adv-table thead { display: none; }
+  .adv-table, .adv-table tbody { display: block; }
+  .adv-table tr { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: baseline; padding: 10px 6px; border-bottom: 1px solid var(--line); }
+  .adv-table td { display: block; padding: 0; border: 0; text-align: left; }
+  .adv-table td:first-child { flex: 1 1 100%; }
+  .adv-table td.n small { display: inline; margin-left: 4px; }
+}
+@media (max-width: 700px) {
+  .adv-table td[data-label]::before { content: attr(data-label) " "; color: var(--muted); font-size: .8rem; font-weight: 400; }
+}
+@media (max-width: 700px) {
+  /* Only the numbers that change are shown on a phone. */
+  .adv-table td.n:has(> .nil:only-child) { display: none; }
+  /* The current-turn row is one even band, not a patchwork of cells. */
+  .tracker tr.on-turn td, .tracker tr td { background: transparent; }
+}
+/* Row hover and the pointer cursor belong to the 20-level table only. */
+.gm-table tbody tr, .adv-table tbody tr { cursor: default; }
+.gm-table tbody tr:hover td, .adv-table tbody tr:hover td { background: transparent; }

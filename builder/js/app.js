@@ -101,7 +101,7 @@
   }
 
   function save() {
-    try { localStorage.setItem(STORE_KEY, JSON.stringify({ builds: app.builds, currentId: app.currentId, tab: app.tab, showAll: app.showAll, libCat: app.lib.cat, profile: app.profile, gm: app.gm })); } catch (e) { /* storage unavailable */ }
+    try { localStorage.setItem(STORE_KEY, JSON.stringify({ builds: app.builds, currentId: app.currentId, tab: app.tab, showAll: app.showAll, libCat: app.lib.cat, profile: app.profile, gm: app.gm, advOff: !!app.advOff })); } catch (e) { /* storage unavailable */ }
   }
   function load() {
     try {
@@ -113,6 +113,7 @@
           app.builds = saved; app.currentId = data.currentId; app.tab = typeof data.tab === 'string' ? data.tab : 'build';
           app.showAll = data.showAll !== false;
           if (data.libCat) app.lib.cat = data.libCat;
+          app.advOff = !!data.advOff;
           app.profile = /^(player|gm|both)$/.test(data.profile) ? data.profile : '';
           app.gm = data.gm && typeof data.gm === 'object' ? data.gm : null;
           return;
@@ -184,7 +185,7 @@
 
   /* ---------- Profiles: player, Game Master or both ---------- */
 
-  var PLAYER_TABS = [['build', 'Build'], ['sheet', 'Sheet'], ['play', 'Play'], ['gear', 'Gear'], ['spells', 'Spells'], ['companions', 'Companions'], ['progression', 'All 20 levels']];
+  var PLAYER_TABS = [['build', 'Build'], ['sheet', 'Sheet'], ['play', 'Play'], ['advisor', 'Advisor'], ['gear', 'Gear'], ['spells', 'Spells'], ['companions', 'Companions'], ['progression', 'All 20 levels']];
   var GM_TABS = [['gm-encounters', 'Encounters', 'gmEncounter'], ['gm-run', 'Run', 'gmRun'], ['gm-creatures', 'Creatures', 'gmCreature'], ['gm-party', 'Party', 'gmParty']];
   var PROFILES = [['player', 'Player'], ['gm', 'Game Master'], ['both', 'Player + GM']];
   function profile() { return app.profile || 'player'; }
@@ -293,7 +294,9 @@
         (vals.length ? 'Change' : 'Choose') + ' (' + vals.length + '/' + rec.count + ')</button></div>';
     }
     var kids = rec.children.length ? '<div class="children">' + rec.children.map(renderChoice).join('') + '</div>' : '';
-    return '<div class="choice' + state + '"><div class="choice-label"><label for="' + id + '">' + esc(rec.label) + '</label>' + pill + '</div>' + body + problems + kids + '</div>';
+    // Feat slots on level cards link to the Advisor's comparison of every option.
+    var compare = /\.L\d+\..*\.feat$/.test(rec.key) && !app.advOff ? '<button type="button" class="linklike adv-link" data-adv="open" data-to="adv-level" data-slot="' + esc(rec.key) + '">Compare the options</button>' : '';
+    return '<div class="choice' + state + '"><div class="choice-label"><label for="' + id + '">' + esc(rec.label) + '</label>' + pill + compare + '</div>' + body + problems + kids + '</div>';
   }
 
   /* ---------- Rendering: build tab ---------- */
@@ -968,7 +971,8 @@
 
     var conds = playConditions(p);
     var combat = '<section class="card"><div class="card-head"><h3>Attacks</h3><span class="muted">Click a bonus or damage to roll</span></div><div class="card-body">' + attackTable(d) + '</div></section>';
-    return '<div class="toolbar"><h2>Play at level ' + b.level + '</h2><span class="muted">Track HP, uses and slots during a session. Rolls appear in the dice tray.</span></div>' +
+    return '<div class="toolbar"><h2>Play at level ' + b.level + '</h2><div class="chips"><span class="muted">Track HP, uses and slots during a session. Rolls appear in the dice tray.</span>' +
+      (app.advOff ? '' : '<button type="button" class="btn btn-small btn-primary" data-adv="open" data-to="adv-turn">What should I do this turn?</button>') + '</div></div>' +
       '<div class="play-grid">' + vitals + turn + conds + combat + playSpells(b, lv, pr) + slots + uses + rests + custom + '</div>';
   }
 
@@ -1911,7 +1915,7 @@
     if (!b.options) b.options = { legacySpells: false };
     if (!b.ruleset) b.ruleset = D.rulesetOf(b);
     if (b.gear && b.gear.shield === true) b.gear.shield = 'shield';
-    var views = { play: renderPlay, sheet: renderSheet, spells: renderSpells, progression: renderProgression, gear: renderGear, companions: renderCompanions, library: renderLibrary };
+    var views = { advisor: D.advisorUi.render, play: renderPlay, sheet: renderSheet, spells: renderSpells, progression: renderProgression, gear: renderGear, companions: renderCompanions, library: renderLibrary };
     var gmv = gmView();
     if (tabsFor(profile()).every(function (t) { return t[0] !== app.tab; })) app.tab = tabsFor(profile())[0][0];
     var html = isGmTab(app.tab) ? D.gm.render(app.tab) : (views[app.tab] || renderBuild)();
@@ -1943,6 +1947,7 @@
     if (t.dataset.tab) { app.tab = t.dataset.tab; window.scrollTo(0, 0); commit(); return; }
     if (t.dataset.profile) { setProfile(t.dataset.profile); return; }
     if (t.dataset.gm) { D.gm.click(t); return; }
+    if (t.dataset.adv) { D.advisorUi.click(t); return; }
     if (t.dataset.iomode) { app.io = t.dataset.iomode; app.modal = { type: 'io' }; $('#modal').hidden = true; renderModal(); return; }
     if (t.dataset.level) {
       setLevel(+t.dataset.level);
@@ -2098,6 +2103,7 @@
     var t = e.target, b = cur();
     if (t.id === 'profile-select') { setProfile(t.value); return; }
     if (t.dataset.gmf) { D.gm.change(t); return; }
+    if (t.dataset.advf) { D.advisorUi.change(t); return; }
     app.deleteArmed = false;
     if (t.id === 'build-select') { app.currentId = t.value; commit(); return; }
     if (t.id === 'build-name') { b.name = t.value.trim() || 'Unnamed'; commit(); return; }
@@ -2230,6 +2236,7 @@
     }
     if (e.target.id === 'hp-form') { e.preventDefault(); return; }
     if (e.target.dataset.gmform) { e.preventDefault(); D.gm.submit(e.target); return; }
+    if (e.target.dataset.advform) { e.preventDefault(); D.advisorUi.submit(e.target); return; }
     if (e.target.id === 'gh-form') { e.preventDefault(); githubFind($('#gh-url').value); return; }
     if (e.target.id === 'custom-item-form') {
       e.preventDefault();
@@ -2310,7 +2317,7 @@
   // Shared helpers for the Game Master module (js/gm.js).
   D.ui = { app: app, esc: esc, $: $, find: find, ico: ico, badge: badge, sign: sign, rollBtn: rollBtn, d20Btn: d20Btn, rollify: rollify, fmt: fmt,
     statBlock: statBlock, openDetail: openDetail, openModal: openModal, closeModal: closeModal, renderModal: renderModal, commit: commit, save: save, doRoll: doRoll,
-    conditionBadge: conditionBadge, playOf: playOf };
+    conditionBadge: conditionBadge, playOf: playOf, cur: cur, ev: function () { return ev; } };
 
   load();
   D.gm.sync();

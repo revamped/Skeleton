@@ -4,11 +4,11 @@
  * background; when a file changed, open pages are told a new version is ready.
  * Bump CACHE only when the file list changes, so stale entries get dropped.
  */
-var CACHE = 'levelwright-v3';
+var CACHE = 'levelwright-v4';
 var APP = [
   './', 'index.html', 'manifest.webmanifest', 'css/builder.css', 'js/vendor/jszip.min.js',
   'js/data/rules.js', 'js/data/spells.js', 'js/data/classes.js', 'js/engine.js', 'js/fc5.js', 'js/data/srd-content.js',
-  'js/content.js', 'js/github.js', 'js/icons.js', 'js/play.js', 'js/gm-rules.js', 'js/gm.js', 'js/print.js', 'js/app.js',
+  'js/content.js', 'js/github.js', 'js/icons.js', 'js/play.js', 'js/gm-rules.js', 'js/gm.js', 'js/advisor.js', 'js/print.js', 'js/app.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'icons/favicon.png'
 ];
 // Web fonts: the stylesheet is fetched at install, and the font files it names are cached as they load.
