@@ -2344,7 +2344,8 @@
   $('#primary').innerHTML = '<section class="card"><div class="card-body"><p class="muted">Loading your saved compendium…</p></div></section>';
   // Wait briefly for an imported compendium so builds that use it render correctly.
   var started = false;
-  function start() { if (started) { render(); return; } started = true; app.ready = true; render(); }
-  D.loadStoredCompendium().then(function (rec) { if (rec) D.registerContent(); start(); }, start);
+  function start() { if (started) return; started = true; app.ready = true; render(); }
+  // If the compendium arrives after the 4-second fallback already drew the page, draw once more with it.
+  D.loadStoredCompendium().then(function (rec) { var late = started; if (rec) D.registerContent(); start(); if (rec && late) render(); }, start);
   setTimeout(start, 4000);
 })();
