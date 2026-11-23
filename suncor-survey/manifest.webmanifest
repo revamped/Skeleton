@@ -1,0 +1,16 @@
+{
+  "name": "Suncor Site Survey",
+  "short_name": "Site Survey",
+  "description": "Guided field capture for the Suncor dealer site survey, with auto-named photos and a filled Word report.",
+  "id": "./",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f3b57",
+  "theme_color": "#0f3b57",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}
